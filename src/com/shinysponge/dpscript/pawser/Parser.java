@@ -132,6 +132,69 @@ public class Parser {
 
             cmds.accept("title " + selector + " times " + fadeIn + " " + stay + " " + fadeOut);
         }, "titleTimes");
+
+        addSelectorMember((selector,cmds)->{
+            if (tokens.skip("=")) {
+                String nbt = parseNBT();
+                cmds.accept("data merge entity " + selector + " " + nbt);
+                return;
+            }
+            tokens.expect('[');
+            String path = tokens.next(TokenType.STRING);
+            tokens.expect(']');
+            if (tokens.skip("=")) {
+                String source = parseNBTSource();
+                cmds.accept("data modify entity " + selector + " " + path + " set " + source);
+            } else if (tokens.skip(".")) {
+                String methodLabel = tokens.next(TokenType.IDENTIFIER);
+                String method = null;
+                tokens.expect('(');
+                if ("insert".equals(methodLabel)) {
+                    method = "insert " + tokens.next(TokenType.INT);
+                    tokens.expect(',');
+                }
+                String source = parseNBTSource();
+                switch (methodLabel) {
+                    case "push":
+                    case "add":
+                    case "append":
+                        method = "append";
+                        break;
+                    case "merge":
+                        method = "merge";
+                        break;
+                    case "prepend":
+                    case "unshift":
+                        method = "prepend";
+                        break;
+                }
+                cmds.accept("data modify entity " + selector + " " + path + " " + method + " " + source);
+            } else {
+                double scale = 1;
+                if (tokens.skip("*")) {
+                    if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) {
+                        scale = Double.parseDouble(tokens.nextValue());
+                    }
+                }
+                cmds.accept("data get entity " + selector + " " + path + " " + scale);
+            }
+        },"nbt","data");
+    }
+
+    private String parseNBTSource() {
+        if (tokens.isNext("{")) {
+            return "value " + parseNBTValue();
+        }
+        String source;
+        if (tokens.skip("@")) {
+            source = "entity " + parseSelector();
+        } else {
+            source = "block " + readCoordinates();
+        }
+        tokens.expect('[');
+        String path = tokens.next(TokenType.STRING);
+        tokens.expect(']');
+        return "from " + source + " " + path;
     }
 
     /**
@@ -692,12 +755,12 @@ public class Parser {
     private String readPosition() {
         String pos = "";
         for (int i = 0; i < 3; i++) {
-            pos += readCoordinate() + " ";
+            pos += readCoordinates() + " ";
         }
         return pos.trim();
     }
 
-    private String readCoordinate() {
+    private String readCoordinates() {
         if (tokens.skip("~")) {
             if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return "~" + tokens.nextValue();
             return "~";
