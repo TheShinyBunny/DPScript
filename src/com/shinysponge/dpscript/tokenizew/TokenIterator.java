@@ -82,6 +82,13 @@ public class TokenIterator implements Iterator<Token> {
         return nextValue();
     }
 
+    public Token expect(TokenType type) {
+        if(!isNext(type)) {
+            throw new RuntimeException("Expected " + type + ", found " + peek());
+        }
+        return next();
+    }
+
     public void skip(TokenType type) {
         if (isNext(type))
             skip();

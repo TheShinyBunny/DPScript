@@ -11,10 +11,11 @@ tick {
     for @a {
         @s.effect(regeneration)
         @s.helmet = end_rod
-        @s.title({
-                    "text":"Hello, World"
-
-                })
+        @s.titleTimes(100, 200, 100)
+        @s.title("Hello, World")
+        @s.subtitle("Hello1, World")
+        @s.action("Hello3, World")
+        @s.actionbar("Hello2, World")
     }
 }
 
