@@ -32,7 +32,7 @@ public class JoinedCondition extends Condition {
             List<String> rightCmds = right.toCommands(parser,function);
             if (rightCmds.size() > 1) {
                 rightCmds = rightCmds.stream().map(s -> s + " run function " + function).collect(Collectors.toList());
-                String name = parser.genrateFunction(rightCmds);
+                String name = parser.generateFunction(rightCmds);
                 leftCmds = leftCmds.stream().map(s -> s + " run function " + name).collect(Collectors.toList());
             } else {
                 List<String> finalRightCmds = rightCmds;
