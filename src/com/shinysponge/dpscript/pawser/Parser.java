@@ -179,6 +179,10 @@ public class Parser {
                 cmds.accept("data get entity " + selector + " " + path + " " + scale);
             }
         },"nbt","data");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('=');
+            cmds.accept("gamemode " + parseIdentifierOrIndex("gamemode",gamemodes) + " " + selector);
+        },"gamemode");
     }
 
     private String parseNBTSource() {
@@ -341,7 +345,7 @@ public class Parser {
         List<String> list = new ArrayList<>();
         while (!tokens.isNext("}")) {
             list.addAll(parseStatement());
-            tokens.skip(TokenType.LINE_END);
+            tokens.expect(TokenType.LINE_END);
         }
         tokens.skip("}");
         return list;
@@ -410,6 +414,22 @@ public class Parser {
                 String fName = generateFunction(cmds);
                 list.add("execute as " + selector + " at @s run function " + fName);
                 break;
+            case "defaultgamemode":
+                tokens.skip("=");
+                if (tokens.isNext(TokenType.LINE_END)) {
+                    list.add("defaultgamemode");
+                } else {
+                    list.add("defaultgamemode " + parseIdentifierOrIndex("gamemode",gamemodes));
+                }
+                break;
+            case "difficulty":
+                tokens.skip("=");
+                if (tokens.isNext(TokenType.LINE_END)) {
+                    list.add("difficulty");
+                } else {
+                    list.add("difficulty " + parseIdentifierOrIndex("difficulty",difficulties));
+                }
+                break;
             default:
                 VariableType varType = variables.get(token);
                 if (varType != null) {
@@ -470,7 +490,32 @@ public class Parser {
         throw new RuntimeException("Unknown bossbar field/command " + field);
     }
 
+    /**
+     * Parses an identifier or an index of the identifier from the specified values. Used currently for gamemodes and difficulties.
+     * @param name The name of the items. Used to throw an exception.
+     * @param values The ids of the values
+     * @return The matched identifier
+     */
+    private String parseIdentifierOrIndex(String name, String... values) {
+        if (tokens.isNext(TokenType.INT)) {
+            int index = Integer.parseInt(tokens.next(TokenType.INT));
+            if (index < 0 || index > values.length) {
+                throw new RuntimeException("Invalid gamemode index " + index + "must be 0-3");
+            }
+            return values[index];
+        } else if (tokens.isNext(TokenType.IDENTIFIER)) {
+            for (String v : values) {
+                if (v.equalsIgnoreCase(tokens.peek().getValue())) {
+                    tokens.skip();
+                    return v;
+                }
+            }
+        }
+        throw new RuntimeException("Invalid " + name + " id " + tokens.peek());
+    }
+
     private static final String[] gamemodes = new String[]{"survival","creative","adventure","spectator"};
+    private static final String[] difficulties = new String[]{"peaceful","easy","normal","hard"};
     private static final Map<String,Integer> INVENTORY_SIZES = new HashMap<String, Integer>(){{
         put("inventory",27);
         put("hotbar",9);
@@ -712,27 +757,7 @@ public class Parser {
                     case "gm":
                     case "gamemode":
                         tokens.expect("=");
-                        if (tokens.isNext(TokenType.INT)) {
-                            int index = Integer.parseInt(tokens.next(TokenType.INT));
-                            if (index < 0 || index > 3) {
-                                throw new RuntimeException("Invalid gamemode index " + index + "must be 0-3");
-                            }
-                            selector += "gamemode=" + gamemodes[index];
-                        } else if (tokens.isNext(TokenType.IDENTIFIER)) {
-                            boolean found = false;
-                            for (String gm : gamemodes) {
-                                if (gm.equalsIgnoreCase(tokens.peek().getValue())) {
-                                    tokens.skip();
-                                    found = true;
-                                    selector += "gamemode=" + gm;
-                                    break;
-                                }
-                            }
-                            if (!found) {
-                                throw new RuntimeException("Invalid gamemode id " + tokens.peek());
-                            }
-                            break;
-                        }
+                        selector += "gamemode=" + parseIdentifierOrIndex("gamemode",gamemodes);
                     case "scores":
                         break;
                     case "rot":
