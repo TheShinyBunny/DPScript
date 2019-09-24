@@ -1,0 +1,446 @@
+
+/////////////// structure
+
+namespace main;
+
+load {
+	print "Hello World!";
+}
+
+tick() {
+	print "Tick!";
+}
+ 
+
+print "Tick";
+
+///////////////// target selectors
+
+closest player:
+@closest, @p, @c
+
+random player:
+@random, @r
+
+all players:
+@players, @a
+
+all entities:
+@entity, @<entity type>, @e, @entities, @any
+
+self:
+@s, @self
+
+
+x,y,z:
+@any(10,50,0.5)
+@any[x=10,y=50,z=0.5]
+@any[at=10,50,0.5]
+
+@e[distance < 5 && level == 3]
+
+// execute as @e if entity @s[distance=..4,level=3] run 
+
+as (@e[distance < 5, level=3]) {   
+    
+}
+
+range:
+5
+5..
+5..10
+..10
+5_10
+5,10
+5<10
+5>10
+
+volume (dx,dy,dz):
+@any[vol=(10,20,15)]
+
+scores:
+@any(foo=5,bar=..1,baz=20..30)
+@any(foo) // objective is greater than 0 (equivalant: foo=1..)
+
+tags:
+@any#foo
+@any#foo#bar
+@any#!foo
+@any#- // no tags
+@any#+ // at least one tag
+
+team:
+@any$foo
+@any$!foo
+@any$- // not in a team
+@any$+ // in any team
+
+limit:
+@any^5
+
+sort:
+@any[nearest]
+
+closest entity with limit:
+@any*1 // for [sort=nearest,limit=1]
+@any*5 // for [sort=nearest,limit=5]
+@any*-3 // for [sort=furthest,limit=3]
+
+level:
+@any%10
+@any%10..12
+
+gamemode:
+@any[gm1]
+@any[creative]
+@any[gm=creative]
+@any[gm!=creative]
+
+name:
+@any"TheShinyBunny"
+
+rotation:
+@any[rx=10..30,ry=90..]
+
+nbt:
+@any{OnGround:true}
+@any{SelectedItem:{carrot_on_a_stick#10*1}}
+
+advancements:
+@any[advancements={story/form_obsidian,!story/follow_ender_eye,story/obtain_armor{iron_helmet,!iron_leggings}]
+
+
+
+////////////// commands
+
+advancement a = "story/mine_stone";
+@c.grant(a);
+
+advancement b = "story/obtain_armor".iron_boots;
+
+@c.revoke(b);
+
+
+
+bossbar bar = "Delay";
+bar.name = "Cooldown";
+bar.color = green;
+bar.style = notched*6;
+bar.style = progress;
+bar.value = 50;
+bar.max = 200;
+bar.show();
+bar.players = @any$bestTeam;
+delete bar;
+bossbars.list();
+get bar.<property>;
+
+
+
+clear @s;
+clear @s diamond;
+clear @s stone{display.Name:"The Infinity Stone"};
+
+
+
+// data
+// datapack
+
+
+
+defaultgamemode = creative;
+
+
+
+difficulty = peaceful;
+get difficulty;
+
+
+
+@a.effect(haste*1,100s);
+@e.effect(haste).clear();
+
+
+
+@c.enchant(sharpness5);
+@c.enchant(efficiency IV);
+
+
+
+as (@creeper) {
+	say "I'm Bob!";
+}
+
+at (@skeleton) {
+	summon TNT;
+}
+
+positioned [~ ~-1 ~] {
+	setblock ~ ~ ~ stone;
+}
+
+positioned (@c) {
+	summon creeper;
+}
+
+align x,y {
+
+}
+
+face [0 70 0] {
+
+}
+
+face (@creeper*1) {
+
+}
+
+rotated [90 0] {
+
+}
+
+rotated (@enderman*1) {
+
+}
+
+in the_nether {
+
+}
+
+anchored feet {
+
+}
+
+if ([~ ~-1 ~] == stone) {
+
+}
+
+if ([~ ~ ~]-[~10 ~10 ~10] == [0 10 0]) {
+
+}
+
+if (@creeper#cool.exists()) {
+
+}
+
+if (myObj[@s] == 5) {
+
+}
+
+if (myObj[@s] > 0) {
+
+}
+
+if (myObj[@s] > myOtherObj[@s]) {
+
+}
+// same /\ \/
+if ((myObj > myOtherObj)[@s]) {
+
+}
+
+if (myObj[@s] between 5,10) {
+
+}
+
+@s.store("Inventory[0].Count").result = myObj[@s];
+as @a at @s if ([~ ~-1 ~] == grass_block) @s.store("foo.bar").score[coolness] = if (@creeper#cool[distance<5]) tell @s "<green><b>You got a coolness point!</r>";
+
+
+
+xp @s +5L;
+xp @s -5;
+@s.xp += 40L;
+
+
+
+
+fill [~ ~ ~]-[~5 ~3 ~5] dropper{CustomName:"lol"};
+
+
+
+my_function();
+namespace:say_hello();
+
+
+
+@a.gamemode = creative;
+
+
+
+gamerule.commandblockoutput = true;
+
+
+
+@a.give(diamond*64);
+
+
+
+@e.kill();
+
+// particle
+
+// playsound
+
+// recipe
+
+@a.armor.head = end_rod;
+@p"TheShinyBunny".hotbar[0] = diamond_sword;
+@p"TheShinyBunny".enderchest[10] = dragon_egg;
+
+
+
+print "Hello World";
+say "Hello World";
+
+
+
+int myObj = "My Objective";
+int health<health> = "Health";
+int diamondOresMined<mined.diamond_ore> = "Mined Diamond Ores";
+myObj.remove();
+myObj.display = sidebar;
+myObj.display = null;
+myObj.name = "Hello";
+
+myObj[@a] = 10;
+myObj[@a]++;
+myObj[@a] += 20;
+myObj[@a]--;
+myObj[@a] -= 5;
+@a.reset(myObj);
+myTrigger.enable(@a);
+myObj["TheShinyBunny"] = myObj["RedSpongeYT"];
+myObj["TheShinyBunny"] += myObj["RedSpongeYT"];
+myObj["TheShinyBunny"] < myObj["RedSpongeYT"];
+myObj["TheShinyBunny"] > myObj["RedSpongeYT"];
+myObj["TheShinyBunny"] >< myObj["RedSpongeYT"];
+
+
+
+@a.tags.add("cool");
+@"RedSpongeYT".tags.remove("cool");
+
+// team
+
+setblock ~ ~ ~ air;
+
+
+
+worldspawn = [0 70 0];
+
+
+
+@a.spawnpoint = [200 65 -350];
+
+
+
+@a.spread([0,0],100,2000,teams);
+
+// stopsound
+
+summon cow;
+summon creeper [~ ~ ~] {ignited:true};
+
+// teleport
+
+tellraw "<purple><b><i>HELLO WORLD!</r>";
+
+
+
+time += 500;
+time = day;
+time.gameTime;
+
+
+
+@a.title("Welcome");
+@a.subtitle("To The Server!");
+
+
+
+myTrigger.trigger();
+
+
+
+weather = clear;
+weather = rain*1000;
+
+border.grow(1000);
+border.center = [0,0];
+border.damage.amount = 10;
+border.damage.buffer = 20;
+border.diameter;
+border.set(100,60m);
+border.warning.distance = 20;
+border.warning.time = 3s;
+
+
+
+/////////////// Json text
+
+specify color:
+<[color]>
+<red>
+<green>
+
+reset color:
+</r>
+
+specify style:
+<[style]>
+<b>, <bold>
+<i>, <italic>
+<u>, <underline>
+<s>, <strikethrough>
+<o>, <obfuscated>
+
+scores:
+<score name="@s" obj="myObj"/>
+
+selector:
+<selector>@creeper*1"Carl"</selector>
+
+<insert>Shfit Click this text to add it to the chat input</insert>
+
+segments:
+<seg color="blue" style="italic,bold">Hello World</seg>
+
+<seg color="red" onclick="open_url:https://www.youtube.com/shinybunny">Click here to open the best YT channel ever!</seg>
+
+<seg color="light_purple" onhover="show_text:'<green>World'">Hello...</seg>
+
+
+
+
+bossbar bar = "yo"
+bar.value = 50
+
+
+// translates to a normal #tick function
+while(true) {
+	say "Hello"
+}
+
+// inside hello10times.mcfs
+int i = 0;
+while (i < 10) {
+	say "Hello";
+}
+
+||
+\/
+
+hello10times.mcfunction:
+
+scoreboard objectives add LocalVars dummy // if it doesnt exist
+
+scoreboard players set i1 LocalVars 0
+execute if score i1 LocalVars matches ..9 run function main:while1
+
+
+while1.mcfunction:
+
+say "Hello"
+
+execute if score i1 LocalVars matches..9 run function main:while

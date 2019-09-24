@@ -1,0 +1,43 @@
+const SLEEP_DURATION = 100
+
+int sleepCooldown = 0
+trigger cancelSleep
+int sleepTimer
+
+tick {
+	if (sleepCooldown > 0) {
+		sleepCooldown--
+	} else {
+		@a[!{SleepTimer: 0s}] run sleeping()
+	}
+	@a[{SleepTimer:0s} && sleepTimer > 0].sleepTimer = 0
+	@a[cancelSleep] run cancel_sleep()
+}
+
+// Called repeatedly for every sleeping player
+function sleeping() {
+	@a.enable(cancelSleep)
+	if (this.sleepTimer == 1) {
+		@a[dimension == OVERWORLD].tellraw("{this} is now sleeping. <red,bold,hover="Click here if you need the night!",trigger=cancelSleep>[NO!]")
+	}
+	if (this.sleepTimer < SLEEP_DURATION) {
+		this.sleepTimer++
+	} else {
+		while (DAYTIME < 23999) {
+			DAYTIME += 1000
+		}
+	}
+}
+
+// Called when a player clicks the [NO!] in the sleeping message, to disable sleeping for the night.
+function cancel_sleep() {
+	this.cancelSleep = 0
+	@a.effect(poison,3s,hide)
+	@a.effect(regeneration,5s,hide)
+	*.sleepTimer = 0
+}
+
+// Run this function to re-enable sleeping for this night.
+function enable_sleep() {
+	sleepCooldown = 0
+}
