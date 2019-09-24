@@ -104,6 +104,13 @@ public class Parser {
                 }
             }
         },"clear");
+
+        addSelectorMember((selector, cmds) -> {
+            tokens.expect("(");
+            String json = readJsonText();
+            tokens.expect(")");
+            cmds.accept("title " + selector + " title " + json);
+        }, "title");
     }
 
     private void addSelectorMember(BiConsumer<String,Consumer<String>> parser, String... ids) {
@@ -298,6 +305,16 @@ public class Parser {
                 }
                 clone += " " + block;
                 list.add(clone);
+
+                break;
+            case "for":
+                tokens.expect("@");
+
+                String selector = parseSelector();
+                List<String> cmds = parseStatement();
+                String fName = generateFunction(cmds);
+                list.add("execute as " + selector + " at @s run function " + fName);
+                break;
             default:
                 VariableType varType = variables.get(token);
                 if (varType != null) {
@@ -744,7 +761,31 @@ public class Parser {
     }
 
     private String readJsonText() {
-        return "";
+        String s = tokens.expect("{", "[");
+        String closer = s.equals("{") ? "}" : "]";
+
+        String out = "" + s;
+
+        int bracket = 1;
+        while(bracket > 0) {
+            Token t = tokens.next();
+            if(t.getValue().equals(s)) {
+                bracket++;
+            } else if(t.getValue().equals(closer)) {
+                bracket--;
+            }
+
+            if(t.getType() != TokenType.LINE_END) {
+                String added = t.getValue();
+                if(t.getType() == TokenType.STRING) {
+                    added = "\"" + added + "\"";
+                }
+
+                out += added;
+            }
+        }
+
+        return out;
     }
 
     private List<String> parseIf() {
