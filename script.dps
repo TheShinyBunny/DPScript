@@ -7,6 +7,15 @@ tick {
     @a[tag=cool].effect(poison)
     @skeleton.helmet = diamond_helmet{Enchantments:[{id: "mending", lvl: 1}]}
     @allplayers[gm=0].revoke(from story/suit_up)
+
+    for @a {
+        @s.effect(regeneration)
+        @s.helmet = end_rod
+        @s.title({
+                    "text":"Hello, World"
+
+                })
+    }
 }
 
 function hello {
