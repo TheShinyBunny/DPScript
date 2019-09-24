@@ -17,6 +17,7 @@ tick {
         @s.action("Hello3, World")
         @s.actionbar("Hello2, World")
     }
+    @a.gamemode = 0
 }
 
 function hello {
