@@ -106,11 +106,43 @@ public class Parser {
         },"clear");
 
         addSelectorMember((selector, cmds) -> {
-            tokens.expect("(");
-            String json = readJsonText();
-            tokens.expect(")");
-            cmds.accept("title " + selector + " title " + json);
+            doTitle(selector, cmds, "title");
         }, "title");
+
+        addSelectorMember((selector, cmds) -> {
+            doTitle(selector, cmds, "subtitle");
+        }, "subtitle");
+
+        addSelectorMember((selector, cmds) -> {
+            doTitle(selector, cmds, "actionbar");
+        }, "action", "actionbar");
+
+        addSelectorMember((selector, cmds) -> {
+            tokens.expect("(");
+
+            String fadeIn = tokens.expect(TokenType.INT).getValue();
+            tokens.expect(",");
+
+            String stay = tokens.expect(TokenType.INT).getValue();
+
+            tokens.expect(",");
+            String fadeOut = tokens.expect(TokenType.INT).getValue();
+
+            tokens.expect(")");
+
+            cmds.accept("title " + selector + " times " + fadeIn + " " + stay + " " + fadeOut);
+        }, "titleTimes");
+    }
+
+    /**
+     * @param type title, subtitle, actionbar
+     */
+    private void doTitle(String selector, Consumer<String> cmds, String type) {
+        tokens.expect("(");
+        String json = readJsonText();
+
+        tokens.expect(")");
+        cmds.accept("title " + selector + " " + type + " " + json);
     }
 
     private void addSelectorMember(BiConsumer<String,Consumer<String>> parser, String... ids) {
@@ -761,31 +793,41 @@ public class Parser {
     }
 
     private String readJsonText() {
-        String s = tokens.expect("{", "[");
-        String closer = s.equals("{") ? "}" : "]";
-
-        String out = "" + s;
-
-        int bracket = 1;
-        while(bracket > 0) {
+        if(tokens.isNext(TokenType.STRING) || tokens.isNext("{", "[")) {
             Token t = tokens.next();
-            if(t.getValue().equals(s)) {
-                bracket++;
-            } else if(t.getValue().equals(closer)) {
-                bracket--;
-            }
 
-            if(t.getType() != TokenType.LINE_END) {
-                String added = t.getValue();
-                if(t.getType() == TokenType.STRING) {
-                    added = "\"" + added + "\"";
+            // Handling single strings
+            if(t.getType() == TokenType.STRING) return "\"" + t.getValue() + "\"";
+
+            // Handling things in brackets
+            String s = t.getValue();
+            String closer = s.equals("{") ? "}" : "]";
+
+            String out = "" + s;
+
+            int bracket = 1;
+            while(bracket > 0) {
+                t = tokens.next();
+                if(t.getValue().equals(s)) {
+                    bracket++;
+                } else if(t.getValue().equals(closer)) {
+                    bracket--;
                 }
 
-                out += added;
+                if(t.getType() != TokenType.LINE_END) {
+                    String added = t.getValue();
+                    if(t.getType() == TokenType.STRING) {
+                        added = "\"" + added + "\"";
+                    }
+
+                    out += added;
+                }
             }
+
+            return out;
         }
 
-        return out;
+        throw new RuntimeException("Unexpected token " + tokens.peek() + " when parsing json!");
     }
 
     private List<String> parseIf() {
