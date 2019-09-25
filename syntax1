@@ -443,4 +443,4 @@ while1.mcfunction:
 
 say "Hello"
 
-execute if score i1 LocalVars matches..9 run function main:while
+execute if score i1 LocalVars matches ..9 run function main:while

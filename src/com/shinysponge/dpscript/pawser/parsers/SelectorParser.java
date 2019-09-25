@@ -1,9 +1,11 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinysponge.dpscript.pawser.Enchantments;
+import com.shinysponge.dpscript.pawser.JsonTextParser;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
+import com.shinysponge.dpscript.tokenizew.Tokenizer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -168,7 +170,7 @@ public class SelectorParser {
         },"nbt","data");
         addSelectorMember((selector,cmds)->{
             tokens.expect('=');
-            cmds.accept("gamemode " + parser.parseIdentifierOrIndex("gamemode",Parser.gamemodes) + " " + selector);
+            cmds.accept("gamemode " + Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes) + " " + selector);
         },"gamemode");
         addSelectorMember((selector,cmds)->{
             tokens.expect('(');
@@ -192,6 +194,52 @@ public class SelectorParser {
             tokens.expect(')');
             cmds.accept("enchant " + selector + " " + ench.name().toLowerCase() + " " + level);
         },"enchant","ench");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('(');
+            String tag = tokens.next(TokenType.IDENTIFIER);
+            tokens.expect(')');
+            cmds.accept("tag " + selector + " add " + tag);
+        },"tag","addTag");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('(');
+            String tag = tokens.next(TokenType.IDENTIFIER);
+            tokens.expect(')');
+            cmds.accept("tag " + selector + " remove " + tag);
+        },"untag","removeTag");
+        addSelectorMember((selector,cmds)->{
+            if (tokens.isNext("++","+=","-=","--","=")) {
+                String op = tokens.expect("++","+=","-=","--","=");
+                String method;
+                int amount = 1;
+                method = "add";
+                if (op.equals("+=") || op.equals("-=") || op.equals("=")) {
+                    amount = Integer.parseInt(tokens.next(TokenType.INT));
+                }
+                if (op.equals("--") || op.equals("-=")) {
+                    amount = -amount;
+                }
+                if (op.equals("=")) {
+                    method = "set";
+                }
+                String pl = "points";
+                if (tokens.skip("l","L","levels","lvl")) {
+                    pl = "levels";
+                } else if (tokens.skip("p","pts","points","P")) {
+                    pl = "points";
+                }
+                cmds.accept("xp " + method + " " + selector + " " + amount + " " + pl);
+            } else if (tokens.skip(".")) {
+                cmds.accept("xp query " + selector + " " + tokens.expect("levels","points"));
+            }
+        },"xp","exp","experience");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('=');
+            cmds.accept("spawnpoint " + parser.readPosition() + " " + selector);
+        },"spawnpoint","spawn");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('(');tokens.expect(')');
+            cmds.accept("kill " + selector);
+        },"kill","remove","die","despawn","sendToHeaven");
     }
 
     private void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {
@@ -213,13 +261,23 @@ public class SelectorParser {
      */
     private void doTitle(String selector, Consumer<String> cmds, String type) {
         tokens.expect("(");
-        String json = parser.readJsonText();
+        String json = JsonTextParser.readTextComponent(parser);
 
         tokens.expect(")");
         cmds.accept("title " + selector + " " + type + " " + json);
     }
 
-    public String parseSelector() {
+    /**
+     * Parses a selector from a literal string. Used for selectors inside JSON texts.
+     * @param selector The selector string
+     * @return A vanilla selector string
+     */
+    public static String parseStringSelector(String selector) {
+        TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(selector));
+        return parseSelectorFrom(tokens);
+    }
+
+    public static String parseSelectorFrom(TokenIterator tokens) {
         String target;
         boolean type = false;
         if (tokens.skip("all","any","e","entity","entities")) {
@@ -267,7 +325,7 @@ public class SelectorParser {
                     case "gm":
                     case "gamemode":
                         tokens.expect("=");
-                        selector += "gamemode=" + parser.parseIdentifierOrIndex("gamemode",Parser.gamemodes);
+                        selector += "gamemode=" + Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes);
                     case "scores":
                         break;
                     case "rot":
@@ -344,5 +402,9 @@ public class SelectorParser {
             }
         }
         return cmds;
+    }
+
+    public String parseSelector() {
+        return parseSelectorFrom(this.tokens);
     }
 }
