@@ -16,7 +16,7 @@ public class BlockCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String function) {
+    public List<String> toCommands(Parser parser, String command) {
         return Collections.singletonList("if block " + pos + " " + block);
     }
 }

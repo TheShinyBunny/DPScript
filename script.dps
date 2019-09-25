@@ -18,6 +18,10 @@ tick {
         @s.actionbar("Hello2, World")
     }
     @a.gamemode = 0
+
+    if (@a[gamemode=1].exists() && ~ ~1 ~ == dropper[facing=west] || ~ ~ ~, ~10 ~10 ~10 == mask(~ ~30 ~)) as @a {
+        print "There are people in creative mode!"
+    }
 }
 
 function hello {

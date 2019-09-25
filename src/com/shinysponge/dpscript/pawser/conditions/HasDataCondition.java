@@ -17,7 +17,7 @@ public class HasDataCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String function) {
+    public List<String> toCommands(Parser parser, String command) {
         return Collections.singletonList("if " + type + " " + selector + " " + path);
     }
 }

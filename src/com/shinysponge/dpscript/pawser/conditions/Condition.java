@@ -5,5 +5,5 @@ import java.util.List;
 
 public abstract class Condition {
 
-    public abstract List<String> toCommands(Parser parser, String function);
+    public abstract List<String> toCommands(Parser parser, String command);
 }

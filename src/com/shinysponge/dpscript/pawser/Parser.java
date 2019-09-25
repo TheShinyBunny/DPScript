@@ -206,29 +206,29 @@ public class Parser {
                 list.add("bossbar add " + id + " " + displayName);
                 variables.put(id,VariableType.BOSSBAR);
                 break;
-            case "clone":
+            case "clone": {
                 String clone = "clone " + readPosition() + " " + readPosition() + " " + readPosition();
                 String block = "";
                 if (!tokens.isNext(TokenType.LINE_END)) {
-                    if (tokens.skip("no_air","non_air","nonair","masked")) {
+                    if (tokens.skip("no_air", "non_air", "nonair", "masked")) {
                         clone += " masked";
-                    } else if (tokens.skip("filter","filtered","only")) {
+                    } else if (tokens.skip("filter", "filtered", "only")) {
                         tokens.expect('(');
                         block = parseBlockId(true);
                         tokens.expect(')');
                         clone += " filtered";
-                    } else if (tokens.skip("replace","all")) {
+                    } else if (tokens.skip("replace", "all")) {
                         clone += " replace";
                     } else {
                         throw new RuntimeException("Invalid mask mode for clone command: " + tokens.nextValue());
                     }
 
                     if (!tokens.isNext(TokenType.LINE_END)) {
-                        if (tokens.skip("force","forced","overlap")) {
+                        if (tokens.skip("force", "forced", "overlap")) {
                             clone += " force";
                         } else if (tokens.skip("move")) {
                             clone += " move";
-                        } else if (tokens.skip("normal","copy")) {
+                        } else if (tokens.skip("normal", "copy")) {
                             clone += " normal";
                         } else {
                             throw new RuntimeException("Invalid clone mode for clone command: " + tokens.nextValue());
@@ -238,6 +238,29 @@ public class Parser {
                 clone += " " + block;
                 list.add(clone);
 
+                break;
+            }
+            case "fill": {
+                String fill = "fill " + readPosition() + " " + readPosition();
+                fill += " " + parseBlockId(false);
+                if (tokens.isNext(TokenType.IDENTIFIER)) {
+                    String mode = tokens.expect("destroy","keep","replace","hollow","outline");
+                    fill += " " + mode;
+                    if ("replace".equals(mode)) {
+                        tokens.skip("(");
+                        fill += " " + parseBlockId(true);
+                        tokens.skip(")");
+                    }
+                }
+                list.add(fill);
+                break;
+            }
+            case "summon":
+                String entity = parseResourceLocation(false);
+                if (!entityIds.contains(entity.substring(entity.indexOf(':')+1))) {
+                    throw new RuntimeException("Unknown entity ID " + entity);
+                }
+                list.add("summon " + entity + " " + readPosition());
                 break;
             case "for": {
                 tokens.expect("@");
@@ -308,6 +331,23 @@ public class Parser {
                     list.add("difficulty");
                 } else {
                     list.add("difficulty " + parseIdentifierOrIndex("difficulty",difficulties));
+                }
+                break;
+            case "worldspawn":
+                tokens.skip("=");
+                list.add("setworldspawn " + readPosition());
+                break;
+            case "time":
+                if (tokens.skip("=") || !tokens.isNext(TokenType.LINE_END)) {
+                    if (tokens.isNext(TokenType.INT)) {
+                        list.add("time set " + tokens.nextValue());
+                    } else {
+                        list.add("time set " + tokens.expect("day","night","midnight","noon"));
+                    }
+                } else if (tokens.isNext("+=")) {
+                    list.add("time add " + tokens.next(TokenType.INT));
+                } else if (tokens.skip(".")) {
+                    list.add("time query " + tokens.expect("day","daytime","gametime"));
                 }
                 break;
             default:
@@ -544,6 +584,9 @@ public class Parser {
 
     public static final List<String> entityIds = Arrays.asList("creeper","skeleton","item","tnt","spider","zombie","ender_dragon");
 
+    /**
+     * Reads position coordinates. Joins 3 {@link #readCoordinate()} calls.
+     */
     private String readPosition() {
         String pos = "";
         for (int i = 0; i < 3; i++) {
@@ -552,6 +595,9 @@ public class Parser {
         return pos.trim();
     }
 
+    /**
+     * Reads rotation coordinates. Joins 2 {@link #readCoordinate()} calls.
+     */
     private String readRotation() {
         String pos = "";
         for (int i = 0; i < 2; i++) {
@@ -560,6 +606,10 @@ public class Parser {
         return pos.trim();
     }
 
+    /**
+     * Reads a single coordinate (absolute, relative (with ~) or rotated (with ^)
+     * @return A valid coordinate string
+     */
     private String readCoordinate() {
         if (tokens.skip("~")) {
             if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return "~" + tokens.nextValue();
@@ -568,11 +618,14 @@ public class Parser {
             if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return "^" + tokens.nextValue();
             return "^";
         } else if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return tokens.nextValue();
-        throw new RuntimeException("Invalid position coordinate!");
+        throw new RuntimeException("Invalid position coordinate! " + tokens.peek());
     }
 
-
-
+    /**
+     * Parses a block ID in the format of <code>minecraft:block[property=value]{SomeNBT:"value"}</code>
+     * @param tag Whether or not to read block tags (block ids that start with #)
+     * @return A valid block state selector
+     */
     private String parseBlockId(boolean tag) {
         String block = parseResourceLocation(tag);
         boolean hadState = false;
@@ -589,6 +642,10 @@ public class Parser {
         return block;
     }
 
+    /**
+     * Parses an NBT object. Expects to have the next token be a curly bracket '{'
+     * @return A validated NBT tag compound
+     */
     public String parseNBT() {
         tokens.expect('{');
         String nbt = "{";
@@ -611,6 +668,10 @@ public class Parser {
         return nbt;
     }
 
+    /**
+     * Parses an NBT value. This can be any valid NBT value, including string literals, numbers, arrays and NBT objects (using {@link #parseNBT()}).
+     * @return A string of the valid minecraft NBT.
+     */
     private String parseNBTValue() {
         if (tokens.isNext(TokenType.INT,TokenType.DOUBLE)) {
             String v = tokens.nextValue();
@@ -698,10 +759,20 @@ public class Parser {
     private List<String> parseIf() {
         Condition cond = parseCondition();
         List<String> then = parseStatement();
-        String function = generateFunction(then);
-        return cond.toCommands(this, function).stream().map(c->"execute " + c).collect(Collectors.toList());
+        String command;
+        if (then.size() == 1) {
+            command = then.get(0);
+        } else {
+            command = "function " + generateFunction(then);
+        }
+        System.out.println("command = " + command);
+        return cond.toCommands(this, command).stream().map(c->"execute " + c + (cond instanceof JoinedCondition ? "" : " run " + command)).collect(Collectors.toList());
     }
 
+    /**
+     * Parses a condition tree. Used for <code>execute if...</code>.
+     * @return A {@link Condition} object that holds the information for generating the execute commands, using {@link Condition#toCommands(Parser, String)}.
+     */
     private Condition parseCondition() {
         Token t = tokens.next();
         switch (t.getValue()) {
@@ -730,14 +801,14 @@ public class Parser {
                 default:
                     String pos;
                     try {
+                        tokens.pushBack();
                         pos = readPosition();
                     } catch (Exception e) {
-                        throw new RuntimeException("Invalid token " + t + " in condition");
+                        throw new RuntimeException("Invalid token " + t + " in condition",e);
                     }
                     if (tokens.skip(",")) {
                         String end = readPosition();
-                        tokens.expect('=');
-                        tokens.skip("=");
+                        tokens.expect("=","==");
                         String mode = "all";
                         String dest;
                         if (tokens.skip("masked","mask")) {
@@ -760,15 +831,18 @@ public class Parser {
                             tokens.expect(')');
                             return chainConditions(new HasDataCondition("block",pos,path));
                         }
-                        tokens.expect('=');
-                        tokens.skip("=");
+                        tokens.expect("=","==");
                         String block = parseBlockId(true);
                         return chainConditions(new BlockCondition(pos, block));
                     }
         }
     }
 
-    // checks if this variable is a const or a local var, and creates a <name> <objective>
+    /**
+     *
+     * checks if this variable is a const or a local var, and creates a &lt;name&gt; &lt;objective&gt;
+     *
+     */
     private String getVariableAccess(String name) {
         if (consts.containsKey(name)) {
             return name + " Constants";
@@ -779,6 +853,12 @@ public class Parser {
         return "@s " + name;
     }
 
+    /**
+     * Parses operators after a score access, for comparing 2 score values. Used for if(condition)s
+     * @param first The first score access
+     * @param literal Whether this score is a literal value, aka a constant hardcoded number.
+     * @return A {@link ScoreCondition} joined by the next condition.
+     */
     private Condition parseScoreOperators(String first, boolean literal) {
         String op = tokens.peek().getValue();
         switch (op) {
@@ -814,6 +894,11 @@ public class Parser {
         return chainConditions(new ScoreCondition(new Value(first,literal),op,new Value(second,secondLiteral)));
     }
 
+    /**
+     * Chains two conditions together. Checks for logic gates.
+     * @param cond The first condition
+     * @return A {@link JoinedCondition} of the given condition and the next condition, or just the given condition if no logic gate token is present.
+     */
     private Condition chainConditions(Condition cond) {
         String chain = tokens.peek().getValue();
         switch (chain) {

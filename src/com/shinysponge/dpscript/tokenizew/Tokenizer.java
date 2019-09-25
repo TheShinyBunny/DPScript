@@ -8,7 +8,7 @@ import java.util.function.Predicate;
 public class Tokenizer {
 
     public static final char[] SYMBOLS = "{}().,;[]=;~^@:#".toCharArray();
-    public static final String[] OPERATORS = new String[]{"+", "-", "++", "--", "*", "/", "%", "<", ">", ">=", "<=", "==", "><", "!=", "!", "&&", "||"}; // , "&", "|", "^", "~"
+    public static final String[] OPERATORS = new String[]{"+", "-", "++", "--", "*", "/", "%", "<", ">", ">=", "<=", "==", "><", "!=", "!", "&&", "||","+="}; // , "&", "|", "^", "~"
 
 
     public static List<Token> tokenize(String str) {

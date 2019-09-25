@@ -20,7 +20,7 @@ public class BlockAreaCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String function) {
+    public List<String> toCommands(Parser parser, String command) {
         return Collections.singletonList("if blocks " + pos + " " + end + " " + dest + " " + mode);
     }
 }

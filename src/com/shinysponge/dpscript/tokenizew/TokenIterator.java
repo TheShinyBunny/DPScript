@@ -126,4 +126,11 @@ public class TokenIterator implements Iterator<Token> {
         }
         return true;
     }
+
+    /**
+     * Reverts the token iterator to the previous token
+     */
+    public void pushBack() {
+        pos--;
+    }
 }

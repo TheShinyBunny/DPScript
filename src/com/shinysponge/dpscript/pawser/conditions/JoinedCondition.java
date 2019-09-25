@@ -19,27 +19,25 @@ public class JoinedCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String function) {
+    public List<String> toCommands(Parser parser, String command) {
         if (op.equals("||")) {
-            List<String> tempCmds = left.toCommands(parser,function);
+            List<String> tempCmds = left.toCommands(parser, command);
             if (!(left instanceof JoinedCondition))
-                tempCmds = tempCmds.stream().map(s->s + " run function " + function).collect(Collectors.toList());
+                tempCmds = tempCmds.stream().map(s->s + " run " + command).collect(Collectors.toList());
             List<String> cmds = new ArrayList<>(tempCmds);
-            tempCmds = right.toCommands(parser,function);
+            tempCmds = right.toCommands(parser, command);
             if (!(right instanceof JoinedCondition))
-                tempCmds = tempCmds.stream().map(s->s + " run function " + function).collect(Collectors.toList());
+                tempCmds = tempCmds.stream().map(s->s + " run " + command).collect(Collectors.toList());
             cmds.addAll(tempCmds);
             return cmds;
         } else {
-            List<String> leftCmds = left.toCommands(parser,function);
-            List<String> rightCmds = right.toCommands(parser,function);
+            List<String> leftCmds = left.toCommands(parser, command);
+            List<String> rightCmds = right.toCommands(parser, command);
             if (rightCmds.size() > 1) {
-                rightCmds = rightCmds.stream().map(s -> s + " run function " + function).collect(Collectors.toList());
-                String name = parser.generateFunction(rightCmds);
+                String name = parser.generateFunction(rightCmds.stream().map(s->"execute " + s).collect(Collectors.toList()));
                 leftCmds = leftCmds.stream().map(s -> s + " run function " + name).collect(Collectors.toList());
             } else {
-                List<String> finalRightCmds = rightCmds;
-                leftCmds = leftCmds.stream().map(s -> s + " " + finalRightCmds.get(0) + " run function " + function).collect(Collectors.toList());
+                leftCmds = leftCmds.stream().map(s -> s + " " + rightCmds.get(0) + " run " + command).collect(Collectors.toList());
             }
             return leftCmds;
         }
