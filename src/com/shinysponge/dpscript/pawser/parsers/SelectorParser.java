@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
+import com.shinysponge.dpscript.pawser.Enchantments;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
@@ -129,11 +130,17 @@ public class SelectorParser {
                 String methodLabel = tokens.next(TokenType.IDENTIFIER);
                 String method = null;
                 tokens.expect('(');
+                if ("remove".equals(methodLabel) || "delete".equals(methodLabel)) {
+                    tokens.expect(')');
+                    cmds.accept("data remove entity " + selector + " " + path);
+                    return;
+                }
                 if ("insert".equals(methodLabel)) {
                     method = "insert " + tokens.next(TokenType.INT);
                     tokens.expect(',');
                 }
                 String source = parser.parseNBTSource();
+                tokens.expect(')');
                 switch (methodLabel) {
                     case "push":
                     case "add":
@@ -163,6 +170,28 @@ public class SelectorParser {
             tokens.expect('=');
             cmds.accept("gamemode " + parser.parseIdentifierOrIndex("gamemode",Parser.gamemodes) + " " + selector);
         },"gamemode");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('(');
+            String enchID = parser.parseResourceLocation(false);
+            Enchantments ench = Enchantments.get(enchID);
+            if (ench == null) {
+                throw new RuntimeException("Unknown enchantment ID " + ench);
+            }
+            int level = 1;
+            if (tokens.isNext(TokenType.INT)) {
+                level = Integer.parseInt(tokens.nextValue());
+            } else if (!tokens.isNext(")")){
+                level = parser.readRomanNumber(tokens.nextValue());
+            }
+            if (level < 1) {
+                throw new RuntimeException("Invalid enchantment level! expected a positive number or a roman number.");
+            }
+            if (level > ench.getMaxLevel()) {
+                throw new RuntimeException("Enchantment " + ench + " level is greater than the maximum level (" + ench.getMaxLevel() + ")!");
+            }
+            tokens.expect(')');
+            cmds.accept("enchant " + selector + " " + ench.name().toLowerCase() + " " + level);
+        },"enchant","ench");
     }
 
     private void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {
