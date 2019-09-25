@@ -115,4 +115,15 @@ public class TokenIterator implements Iterator<Token> {
     public String previous() {
         return lastToken.getValue();
     }
+
+    public boolean skipAll(String... tokens) {
+        for (int i = 0; i < tokens.length; i++) {
+            String t = tokens[i];
+            if (!peek(i).getValue().equals(t)) return false;
+        }
+        for (String s : tokens) {
+            skip();
+        }
+        return true;
+    }
 }

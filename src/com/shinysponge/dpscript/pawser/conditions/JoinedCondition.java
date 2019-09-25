@@ -1,4 +1,6 @@
-package com.shinysponge.dpscript.pawser;
+package com.shinysponge.dpscript.pawser.conditions;
+
+import com.shinysponge.dpscript.pawser.Parser;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -6,11 +8,12 @@ import java.util.stream.Collectors;
 
 public class JoinedCondition extends Condition {
 
+    private String op;
     private Condition left;
     private Condition right;
 
     public JoinedCondition(String op, Condition left, Condition right) {
-        super(null, op, null);
+        this.op = op;
         this.left = left;
         this.right = right;
     }

@@ -1,19 +1,24 @@
-package com.shinysponge.dpscript.pawser;
+package com.shinysponge.dpscript.pawser.conditions;
+
+import com.shinysponge.dpscript.pawser.Parser;
+import com.shinysponge.dpscript.pawser.Value;
 
 import java.util.Collections;
 import java.util.List;
 
-public class Condition {
+public class ScoreCondition extends Condition {
+
     private final Value first;
-    protected final String op;
+    private final String op;
     private final Value second;
 
-    public Condition(Value first, String op, Value second) {
+    public ScoreCondition(Value first, String op, Value second) {
         this.first = first;
         this.op = op;
         this.second = second;
     }
 
+    @Override
     public List<String> toCommands(Parser parser, String function) {
         if (first.isLiteral() && second.isLiteral()) throw new RuntimeException("Cannot compare two literal values!");
         if (first.isLiteral()) {

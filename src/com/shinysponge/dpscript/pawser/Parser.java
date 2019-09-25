@@ -1,6 +1,6 @@
 package com.shinysponge.dpscript.pawser;
 
-import com.shinysponge.dpscript.pawser.parsers.SelectorMember;
+import com.shinysponge.dpscript.pawser.conditions.*;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
 import com.shinysponge.dpscript.tokenizew.Token;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
@@ -8,8 +8,6 @@ import com.shinysponge.dpscript.tokenizew.TokenType;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -51,7 +49,7 @@ public class Parser {
         if (tokens.skip("@")) {
             source = "entity " + selectors.parseSelector();
         } else {
-            source = "block " + readCoordinates();
+            source = "block " + readPosition();
         }
         tokens.expect('[');
         String path = tokens.next(TokenType.STRING);
@@ -241,14 +239,61 @@ public class Parser {
                 list.add(clone);
 
                 break;
-            case "for":
+            case "for": {
                 tokens.expect("@");
-
                 String selector = selectors.parseSelector();
                 List<String> cmds = parseStatement();
                 String fName = generateFunction(cmds);
                 list.add("execute as " + selector + " at @s run function " + fName);
                 break;
+            }
+            case "as":
+            case "at": {
+                tokens.expect('@');
+                String selector = selectors.parseSelector();
+                list.add(chainExecute(token + " " + selector));
+                break;
+            }
+            case "facing":
+            case "face": {
+                String args;
+                if (tokens.skip("@")) {
+                    String selector = selectors.parseSelector();
+                    tokens.expect('.');
+                    String anchor = tokens.expect("feet","eyes");
+                    args = "entity " + selector + " " + anchor;
+                } else {
+                    args = readPosition();
+                }
+                list.add("facing " + args);
+                break;
+            }
+            case "in":
+                String dim = tokens.expect("overworld","the_nether","the_end");
+                list.add(chainExecute("in " + dim));
+                break;
+            case "offset":
+            case "positioned": {
+                String args;
+                if (tokens.skip("@")) {
+                    args = "as " + selectors.parseSelector();
+                } else {
+                    args = readPosition();
+                }
+                list.add(chainExecute("positioned " + args));
+                break;
+            }
+            case "rotate":
+            case "rotated": {
+                String args;
+                if (tokens.skip("@")) {
+                    args = "as " + selectors.parseSelector();
+                } else {
+                    args = readRotation();
+                }
+                list.add(chainExecute("rotated " + args));
+                break;
+            }
             case "defaultgamemode":
                 tokens.skip("=");
                 if (tokens.isNext(TokenType.LINE_END)) {
@@ -276,6 +321,20 @@ public class Parser {
                 }
         }
         return list;
+    }
+
+    private String chainExecute(String chain) {
+        List<String> cmds = parseStatement();
+        if (cmds.size() == 1) {
+            if (cmds.get(0).startsWith("execute")) {
+                return "execute " + chain + cmds.get(0).substring("execute".length());
+            } else {
+                return "execute " + chain + " run " + cmds.get(0);
+            }
+        } else {
+            String fName = generateFunction(cmds);
+            return "execute " + chain + " run function " + fName;
+        }
     }
 
     private String parseBossbarCommand(String bossbar) {
@@ -488,12 +547,20 @@ public class Parser {
     private String readPosition() {
         String pos = "";
         for (int i = 0; i < 3; i++) {
-            pos += readCoordinates() + " ";
+            pos += readCoordinate() + " ";
         }
         return pos.trim();
     }
 
-    private String readCoordinates() {
+    private String readRotation() {
+        String pos = "";
+        for (int i = 0; i < 2; i++) {
+            pos += readCoordinate() + " ";
+        }
+        return pos.trim();
+    }
+
+    private String readCoordinate() {
         if (tokens.skip("~")) {
             if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return "~" + tokens.nextValue();
             return "~";
@@ -503,6 +570,8 @@ public class Parser {
         } else if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return tokens.nextValue();
         throw new RuntimeException("Invalid position coordinate!");
     }
+
+
 
     private String parseBlockId(boolean tag) {
         String block = parseResourceLocation(tag);
@@ -634,37 +703,68 @@ public class Parser {
     }
 
     private Condition parseCondition() {
-        System.out.println("parsing cond");
         Token t = tokens.next();
-        if (t.getValue().equals("this")) {
-            System.out.println("parsed this");
-            tokens.expect('.');
-            String field = tokens.next(TokenType.IDENTIFIER);
-            return parseOperators("@s " + field,false);
-        } else if (t.getValue().equals("(")) {
-            System.out.println("parsing parenthesis");
-            Condition c = parseCondition();
-            tokens.expect(')');
-            String chain = tokens.peek().getValue();
-            switch (chain) {
-                case "&&":
-                case "||":
-                    tokens.skip();
-                    return new JoinedCondition(chain,c,parseCondition());
-            }
-            return c;
+        switch (t.getValue()) {
+            case "this":
+                tokens.expect('.');
+                String field = tokens.next(TokenType.IDENTIFIER);
+                return parseScoreOperators("@s " + field, false);
+            case "(":
+                Condition c = parseCondition();
+                tokens.expect(')');
+                return chainConditions(c);
+            case "@":
+                String selector = selectors.parseSelector();
+                if (tokens.skipAll(".","exists","(",")")) {
+                    return chainConditions(new EntityExistsCondition(selector));
+                }
+                break;
         }
         switch (t.getType()) {
             case IDENTIFIER:
-                System.out.println("parsing id");
                 if (!globals.contains(t.getValue()) && !consts.containsKey(t.getValue()))
                     throw new RuntimeException("Unknown constant " + t.getValue());
-                return parseOperators(getVariableAccess(t.getValue()),false);
+                return parseScoreOperators(getVariableAccess(t.getValue()),false);
             case INT:
-                System.out.println("parsing literal");
-                return parseOperators(t.getValue(),true);
+                return parseScoreOperators(t.getValue(),true);
                 default:
-                    throw new RuntimeException("Invalid token " + t + " in condition");
+                    String pos;
+                    try {
+                        pos = readPosition();
+                    } catch (Exception e) {
+                        throw new RuntimeException("Invalid token " + t + " in condition");
+                    }
+                    if (tokens.skip(",")) {
+                        String end = readPosition();
+                        tokens.expect('=');
+                        tokens.skip("=");
+                        String mode = "all";
+                        String dest;
+                        if (tokens.skip("masked","mask")) {
+                            mode = "masked";
+                            tokens.expect('(');
+                            dest = readPosition();
+                            tokens.expect(')');
+                        } else if (tokens.skip("all")){
+                            tokens.expect('(');
+                            dest = readPosition();
+                            tokens.expect(')');
+                        } else {
+                            dest = readPosition();
+                        }
+                        return chainConditions(new BlockAreaCondition(pos,end,dest,mode));
+                    } else {
+                        if (tokens.skip("has")) {
+                            tokens.expect('(');
+                            String path = tokens.next(TokenType.STRING);
+                            tokens.expect(')');
+                            return chainConditions(new HasDataCondition("block",pos,path));
+                        }
+                        tokens.expect('=');
+                        tokens.skip("=");
+                        String block = parseBlockId(true);
+                        return chainConditions(new BlockCondition(pos, block));
+                    }
         }
     }
 
@@ -679,8 +779,7 @@ public class Parser {
         return "@s " + name;
     }
 
-    private Condition parseOperators(String first, boolean literal) {
-        System.out.println("first token: " + first);
+    private Condition parseScoreOperators(String first, boolean literal) {
         String op = tokens.peek().getValue();
         switch (op) {
             case "<":
@@ -694,7 +793,6 @@ public class Parser {
                 default:
                     return null;
         }
-        System.out.println("operator: " + op);
         tokens.skip();
         Token secondTok = tokens.next();
         String second = "";
@@ -712,10 +810,12 @@ public class Parser {
             default:
                 throw new RuntimeException("Invalid token in condition");
         }
-        System.out.println("second token: " + second);
+
+        return chainConditions(new ScoreCondition(new Value(first,literal),op,new Value(second,secondLiteral)));
+    }
+
+    private Condition chainConditions(Condition cond) {
         String chain = tokens.peek().getValue();
-        System.out.println("chain: " + chain);
-        Condition cond = new Condition(new Value(first,literal),op,new Value(second,secondLiteral));
         switch (chain) {
             case "&&":
             case "||":
