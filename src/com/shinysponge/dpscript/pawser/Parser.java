@@ -350,14 +350,31 @@ public class Parser {
                     list.add("time query " + tokens.expect("day","daytime","gametime"));
                 }
                 break;
+            case "weather":
+                tokens.skip("=");
+                String weather = tokens.expect("clear","rain","thunder");
+                tokens.skip("for");
+                if (tokens.isNext(TokenType.INT)) {
+                    int time = Integer.parseInt(tokens.nextValue());
+                    if (time < 0 || time > 1000000) {
+                        throw new RuntimeException("Invalid duration argument for weather: " + time + " must be between 0 - 1,000,000");
+                    }
+                    weather += " " + time;
+                }
+                list.add("weather " + weather);
+                break;
             default:
                 VariableType varType = variables.get(token);
                 if (varType != null) {
                     switch (varType) {
                         case BOSSBAR:
                             list.add(parseBossbarCommand(token));
-                        default:
+                            break;
                     }
+                } else if (functions.containsKey(token)) {
+                    tokens.expect('(');
+                    tokens.expect(')');
+                    list.add("function " + token);
                 }
         }
         return list;
@@ -386,30 +403,42 @@ public class Parser {
                 String color = tokens.expect("blue","green","pink","purple","red","white","yellow");
                 return "bossbar set " + bossbar + " color " + color;
             case "max":
-                tokens.expect('=');
-                int max = Integer.parseInt(tokens.next(TokenType.INT));
-                return "bossbar set " + bossbar + " max " + max;
+                if (tokens.skip("=")) {
+                    int max = Integer.parseInt(tokens.next(TokenType.INT));
+                    return "bossbar set " + bossbar + " max " + max;
+                } else {
+                    return "bossbar get " + bossbar + " max";
+                }
             case "name":
                 tokens.expect('=');
                 String name = readJsonText();
                 return "bossbar set " + bossbar + " name " + name;
             case "players":
-                tokens.expect('=');
-                tokens.expect('@');
-                String selector = selectors.parseSelector();
-                return "bossbar set " + bossbar + " players " + selector;
+                if (tokens.skip("=")) {
+                    tokens.expect('@');
+                    String selector = selectors.parseSelector();
+                    return "bossbar set " + bossbar + " players " + selector;
+                } else {
+                    return "bossbar get "+ bossbar + " players";
+                }
             case "style":
                 tokens.expect('=');
                 String style = tokens.expect("notched_6","notched_10","notched_12","notched_20","progress");
                 return "bossbar set " + bossbar + "style " + style;
             case "value":
-                tokens.expect('=');
-                int value = Integer.parseInt(tokens.next(TokenType.INT));
-                return "bossbar set " + bossbar + " value " + value;
+                if (tokens.skip("=")) {
+                    int value = Integer.parseInt(tokens.next(TokenType.INT));
+                    return "bossbar set " + bossbar + " value " + value;
+                } else {
+                    return "bossbar get " + bossbar + " value";
+                }
             case "visible":
-                tokens.expect('=');
-                String bool = tokens.expect("true","false");
-                return "bossbar set " + bossbar + " visible " + bool;
+                if (tokens.skip("=")) {
+                    String bool = tokens.expect("true", "false");
+                    return "bossbar set " + bossbar + " visible " + bool;
+                } else {
+                    return "bossbar get " + bossbar + " visible";
+                }
             case "show":
             case "display":
                 tokens.expect('(');tokens.expect(')');
