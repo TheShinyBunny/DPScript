@@ -353,11 +353,8 @@ public class SelectorParser {
                         for (ObjectiveOperators op : ObjectiveOperators.values()) {
                             if (tokens.skip(op.getOperator())) {
                                 if (tokens.skip("@")) {
-                                    String source = parseSelector();
-                                    tokens.expect('.');
-                                    String sourceObj = tokens.next(TokenType.IDENTIFIER);
-                                    if (!parser.hasObjective(sourceObj)) throw new RuntimeException("Unknown source objective " + sourceObj);
-                                    cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + source + " " + sourceObj);
+                                    String source = parseObjectiveSelector();
+                                    cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + source);
                                     return cmds;
                                 } else if (tokens.isNext(TokenType.INT)) {
                                     int value = Integer.parseInt(tokens.nextValue());
@@ -386,5 +383,13 @@ public class SelectorParser {
 
     public String parseSelector() {
         return parseSelectorFrom(this.tokens);
+    }
+
+    public String parseObjectiveSelector() {
+        String selector = parseSelector();
+        tokens.expect('.');
+        String obj = tokens.next(TokenType.IDENTIFIER);
+        if (!parser.hasObjective(obj)) throw new RuntimeException("Unknown objective " + obj);
+        return selector + " " + obj;
     }
 }

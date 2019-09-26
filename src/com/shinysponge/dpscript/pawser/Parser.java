@@ -880,6 +880,11 @@ public class Parser {
                 if (tokens.skipAll(".","exists","(",")")) {
                     return chainConditions(new EntityExistsCondition(selector));
                 }
+                if (tokens.skip(".")) {
+                    String obj = tokens.next(TokenType.IDENTIFIER);
+                    if (!hasObjective(obj)) throw new RuntimeException("Unknown objective for entity selector " + selector + ":" + obj);
+                    return parseScoreOperators(selector + " " + obj,false);
+                }
                 break;
         }
         switch (t.getType()) {
@@ -979,7 +984,11 @@ public class Parser {
                 secondLiteral = true;
                 break;
             default:
-                throw new RuntimeException("Invalid token in condition");
+                if (secondTok.getValue().equals("@")) {
+                    second = selectors.parseObjectiveSelector();
+                } else {
+                    throw new RuntimeException("Invalid token in condition");
+                }
         }
 
         return chainConditions(new ScoreCondition(new Value(first,literal),op,new Value(second,secondLiteral)));
