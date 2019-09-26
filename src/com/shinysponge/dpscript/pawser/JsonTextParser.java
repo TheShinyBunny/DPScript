@@ -16,7 +16,7 @@ public class JsonTextParser {
             if (p.tokens.isNext(TokenType.STRING)) {
                 return "\"" + SelectorParser.parseStringSelector(p.tokens.nextValue()) + "\"";
             }
-            return p.selectors.parseSelector();
+            return "\"" + p.selectors.parseSelector() + "\"";
         });
     }};
 

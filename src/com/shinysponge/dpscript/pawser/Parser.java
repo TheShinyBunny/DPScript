@@ -1,10 +1,12 @@
 package com.shinysponge.dpscript.pawser;
 
 import com.shinysponge.dpscript.pawser.conditions.*;
+import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
 import com.shinysponge.dpscript.tokenizew.Token;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
+import com.sun.org.apache.bcel.internal.generic.ObjectType;
 import netscape.javascript.JSObject;
 
 import java.time.Duration;
@@ -119,7 +121,7 @@ public class Parser {
         }
     }
 
-    private List<String> parseStatement() {
+    public List<String> parseStatement() {
         List<String> list = new ArrayList<>();
         if (scope == ScopeType.GLOBAL) {
             parseGlobal();
@@ -159,6 +161,14 @@ public class Parser {
                 if (globals.contains(name))
                     throw new RuntimeException("Duplicate globals " + name);
                 globals.add(name);
+                break;
+            }
+            case "int": {
+                String name = tokens.next(TokenType.IDENTIFIER);
+                if (hasObjective(name)) {
+                    throw new RuntimeException("A variable named " + name + " already exists!");
+                }
+                variables.put(name,VariableType.OBJECTIVE);
                 break;
             }
         }
@@ -266,9 +276,7 @@ public class Parser {
             case "for": {
                 tokens.expect("@");
                 String selector = selectors.parseSelector();
-                List<String> cmds = parseStatement();
-                String fName = generateFunction(cmds);
-                list.add("execute as " + selector + " at @s run function " + fName);
+                list.add("execute as " + selector + " at @s run " + readExecuteRunCommand());
                 break;
             }
             case "as":
@@ -364,6 +372,12 @@ public class Parser {
                 }
                 list.add("weather " + weather);
                 break;
+            case "block":
+                tokens.expect('(');
+                String pos = readPosition();
+                tokens.expect(')');
+                tokens.expect('.');
+                list.add(readBlockCommand(pos));
             default:
                 VariableType varType = variables.get(token);
                 if (varType != null) {
@@ -379,6 +393,31 @@ public class Parser {
                 }
         }
         return list;
+    }
+
+    private String readBlockCommand(String pos) {
+        String member = tokens.next(TokenType.IDENTIFIER);
+        switch (member) {
+            case "break":
+                tokens.expect('(');
+                String mode = "replace";
+                if (tokens.skip("drop","destroy","true")) {
+                    mode = "destroy";
+                }
+                tokens.expect(')');
+                return "setblock " + pos + " air " + mode;
+            case "nbt":
+            case "data":
+                return NBTDataParser.parse("block " + pos,this);
+            case "container":
+                tokens.expect('[');
+                int slot = Integer.parseInt(tokens.next(TokenType.INT));
+                tokens.expect(']');
+                tokens.expect('=');
+                String item = parseItemAndCount();
+                return "replaceitem block " + pos + " container." + slot + " " + item;
+        }
+        throw new RuntimeException("Unknown block operation " + member);
     }
 
     private String chainExecute(String chain) {
@@ -405,8 +444,12 @@ public class Parser {
                 return "bossbar set " + bossbar + " color " + color;
             case "max":
                 if (tokens.skip("=")) {
-                    int max = Integer.parseInt(tokens.next(TokenType.INT));
-                    return "bossbar set " + bossbar + " max " + max;
+                    if (tokens.isNext(TokenType.INT)) {
+                        int max = Integer.parseInt(tokens.next(TokenType.INT));
+                        return "bossbar set " + bossbar + " max " + max;
+                    } else {
+                        return parseExecuteStore("bossbar " + bossbar + " max");
+                    }
                 } else {
                     return "bossbar get " + bossbar + " max";
                 }
@@ -428,8 +471,12 @@ public class Parser {
                 return "bossbar set " + bossbar + "style " + style;
             case "value":
                 if (tokens.skip("=")) {
-                    int value = Integer.parseInt(tokens.next(TokenType.INT));
-                    return "bossbar set " + bossbar + " value " + value;
+                    if (tokens.isNext(TokenType.INT)) {
+                        int value = Integer.parseInt(tokens.next(TokenType.INT));
+                        return "bossbar set " + bossbar + " value " + value;
+                    } else {
+                        return parseExecuteStore("bossbar " + bossbar + " value");
+                    }
                 } else {
                     return "bossbar get " + bossbar + " value";
                 }
@@ -452,6 +499,21 @@ public class Parser {
                 return "bossbar remove " + bossbar;
         }
         throw new RuntimeException("Unknown bossbar field/command " + field);
+    }
+
+    public String parseExecuteStore(String storeCommand) {
+        String method = "result";
+        String cmd;
+        if (tokens.isNext("result","success")) {
+            method = tokens.nextValue();
+            tokens.expect('(');
+            cmd = readExecuteRunCommand();
+            tokens.expect(')');
+        } else {
+            cmd = readExecuteRunCommand();
+        }
+
+        return "execute store " + method + " " + storeCommand + " run " + cmd;
     }
 
     /**
@@ -793,13 +855,7 @@ public class Parser {
 
     private List<String> parseIf() {
         Condition cond = parseCondition();
-        List<String> then = parseStatement();
-        String command;
-        if (then.size() == 1) {
-            command = then.get(0);
-        } else {
-            command = "function " + generateFunction(then);
-        }
+        String command = readExecuteRunCommand();
         System.out.println("command = " + command);
         return cond.toCommands(this, command).stream().map(c->"execute " + c + (cond instanceof JoinedCondition ? "" : " run " + command)).collect(Collectors.toList());
     }
@@ -951,5 +1007,35 @@ public class Parser {
         functions.put(s,commands);
         autoGenerated++;
         return s;
+    }
+
+    /**
+     * Reads the next statement, and if it contains multiple commands, will combine them into a function command.
+     * @return
+     */
+    public String readExecuteRunCommand() {
+        List<String> statement = parseStatement();
+        if (statement.isEmpty()) return "say Empty Statement!";
+        if (statement.size() > 1) {
+            return "function " + generateFunction(statement);
+        }
+        return statement.get(0);
+    }
+
+    public String parseItemAndCount() {
+        String item = parseItemId(false);
+        tokens.skip("*");
+        if (tokens.isNext(TokenType.INT)) {
+            return item + " " + tokens.nextValue();
+        }
+        return item;
+    }
+
+    public boolean hasObjective(String name) {
+        return variables.get(name) == VariableType.OBJECTIVE;
+    }
+
+    public String createConstant(int value) {
+        return "constant_" + value;
     }
 }

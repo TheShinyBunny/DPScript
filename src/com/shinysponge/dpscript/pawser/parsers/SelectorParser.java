@@ -2,10 +2,12 @@ package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinysponge.dpscript.pawser.Enchantments;
 import com.shinysponge.dpscript.pawser.JsonTextParser;
+import com.shinysponge.dpscript.pawser.ObjectiveOperators;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 import com.shinysponge.dpscript.tokenizew.Tokenizer;
+import com.sun.org.apache.bcel.internal.generic.ObjectType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -79,12 +81,8 @@ public class SelectorParser {
             if (tokens.isNext(")")) {
                 cmds.accept("clear " + selector);
             } else {
-                String item = parser.parseItemId(true);
-                if (tokens.skip("*")) {
-                    cmds.accept("clear " + selector + " " + item + " " + tokens.next(TokenType.INT));
-                } else {
-                    cmds.accept("clear " + selector + " " + item);
-                }
+                String item = parser.parseItemAndCount();
+                cmds.accept("clear " + selector + " " + item);
             }
         },"clear");
 
@@ -117,56 +115,7 @@ public class SelectorParser {
         }, "titleTimes");
 
         addSelectorMember((selector,cmds)->{
-            if (tokens.skip("=")) {
-                String nbt = parser.parseNBT();
-                cmds.accept("data merge entity " + selector + " " + nbt);
-                return;
-            }
-            tokens.expect('[');
-            String path = tokens.next(TokenType.STRING);
-            tokens.expect(']');
-            if (tokens.skip("=")) {
-                String source = parser.parseNBTSource();
-                cmds.accept("data modify entity " + selector + " " + path + " set " + source);
-            } else if (tokens.skip(".")) {
-                String methodLabel = tokens.next(TokenType.IDENTIFIER);
-                String method = null;
-                tokens.expect('(');
-                if ("remove".equals(methodLabel) || "delete".equals(methodLabel)) {
-                    tokens.expect(')');
-                    cmds.accept("data remove entity " + selector + " " + path);
-                    return;
-                }
-                if ("insert".equals(methodLabel)) {
-                    method = "insert " + tokens.next(TokenType.INT);
-                    tokens.expect(',');
-                }
-                String source = parser.parseNBTSource();
-                tokens.expect(')');
-                switch (methodLabel) {
-                    case "push":
-                    case "add":
-                    case "append":
-                        method = "append";
-                        break;
-                    case "merge":
-                        method = "merge";
-                        break;
-                    case "prepend":
-                    case "unshift":
-                        method = "prepend";
-                        break;
-                }
-                cmds.accept("data modify entity " + selector + " " + path + " " + method + " " + source);
-            } else {
-                double scale = 1;
-                if (tokens.skip("*")) {
-                    if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) {
-                        scale = Double.parseDouble(tokens.nextValue());
-                    }
-                }
-                cmds.accept("data get entity " + selector + " " + path + " " + scale);
-            }
+            cmds.accept(NBTDataParser.parse("entity " + selector,parser));
         },"nbt","data");
         addSelectorMember((selector,cmds)->{
             tokens.expect('=');
@@ -371,7 +320,7 @@ public class SelectorParser {
                         throw new RuntimeException("Inventory/Enderchest slot index is out of bounds!");
                     tokens.expect(']');
                     tokens.expect('=');
-                    String item = parser.parseItemId(false);
+                    String item = parser.parseItemAndCount();
                     cmds.add("replaceitem entity " + selector + " " + (field + "." + slot) + " " + item + " " + parser.readOptionalInt());
                     break;
                 }
@@ -379,14 +328,14 @@ public class SelectorParser {
                 case "hand":
                 case "righthand": {
                     tokens.expect('=');
-                    String item = parser.parseItemId(false);
+                    String item = parser.parseItemAndCount();
                     cmds.add("replaceitem entity " + selector + " weapon.mainhand " + item + " " + parser.readOptionalInt());
                     break;
                 }
                 case "offhand":
                 case "lefthand": {
                     tokens.expect('=');
-                    String item = parser.parseItemId(false);
+                    String item = parser.parseItemAndCount();
                     cmds.add("replaceitem entity " + selector + " weapon.offhand " + item + " " + parser.readOptionalInt());
                     break;
                 }
@@ -395,10 +344,41 @@ public class SelectorParser {
                 case "helmet":
                 case "leggings": {
                     tokens.expect('=');
-                    String item = parser.parseItemId(false);
+                    String item = parser.parseItemAndCount();
                     cmds.add("replaceitem entity " + selector + " armor." + Parser.ARMOR_SLOT_NAMES.get(field) + " " + item + " " + parser.readOptionalInt());
                     break;
                 }
+                default:
+                    if (parser.hasObjective(field)) {
+                        for (ObjectiveOperators op : ObjectiveOperators.values()) {
+                            if (tokens.skip(op.getOperator())) {
+                                if (tokens.skip("@")) {
+                                    String source = parseSelector();
+                                    tokens.expect('.');
+                                    String sourceObj = tokens.next(TokenType.IDENTIFIER);
+                                    if (!parser.hasObjective(sourceObj)) throw new RuntimeException("Unknown source objective " + sourceObj);
+                                    cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + source + " " + sourceObj);
+                                    return cmds;
+                                } else if (tokens.isNext(TokenType.INT)) {
+                                    int value = Integer.parseInt(tokens.nextValue());
+                                    if (op.getLiteralCommand() == null) {
+                                        String constSource = parser.createConstant(value);
+                                        cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + constSource + " Constants");
+                                    } else {
+                                        cmds.add("scoreboard players " + op.getLiteralCommand() + " " + selector + " " + field + " " + value);
+                                    }
+                                    return cmds;
+                                } else if (op == ObjectiveOperators.EQUALS) {
+                                    cmds.add(parser.parseExecuteStore("score " + selector + " " + field));
+                                    return cmds;
+                                }
+                                throw new RuntimeException("Expected a literal value or another score after score operator");
+                            }
+                        }
+                        throw new RuntimeException("Invalid score operation " + tokens.peek());
+                    } else {
+                        throw new RuntimeException("Unknown field for selector " + selector + " : " + field);
+                    }
             }
         }
         return cmds;

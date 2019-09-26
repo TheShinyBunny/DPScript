@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.pawser;
 
 public enum VariableType {
-    BOSSBAR;
+    BOSSBAR,
+    OBJECTIVE;
 }
