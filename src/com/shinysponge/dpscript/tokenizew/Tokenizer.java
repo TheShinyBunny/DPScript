@@ -63,6 +63,7 @@ public class Tokenizer {
                 case '\n':
                     if (rawCommand) {
                         tokens.add(new Token(codePos,TokenType.RAW_COMMAND,temp));
+                        rawCommand = false;
                         temp = "";
                     }
                     tokens.add(new Token(codePos,TokenType.LINE_END,"line end"));
