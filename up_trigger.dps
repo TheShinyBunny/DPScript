@@ -1,0 +1,16 @@
+trigger up
+int down
+
+function tick_up {
+    @s.up -= 1
+}
+
+tick {
+    @a.enable(up)
+    for @a {
+        if(@s.up >= 0) {
+            tick_up()
+        }
+    }
+}
+

@@ -29,6 +29,8 @@ tick {
     @a.test = 5
     @a.test += @a.score
     @a.test = time.daytime
+
+    @a.enable
 }
 
 function hello {
