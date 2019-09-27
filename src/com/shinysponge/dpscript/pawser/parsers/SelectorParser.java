@@ -188,6 +188,13 @@ public class SelectorParser {
             tokens.expect('(');tokens.expect(')');
             cmds.accept("kill " + selector);
         },"kill","remove","die","despawn","sendToHeaven");
+
+        addSelectorMember((selector, cmds) -> {
+            tokens.expect("(");
+            String pos = parser.readPosition();
+            tokens.expect(")");
+            cmds.accept("tp " + selector + " " + pos);
+        }, "tp");
     }
 
     private void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {

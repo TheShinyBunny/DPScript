@@ -3,7 +3,13 @@ int down
 
 function tick_up {
     @s.up -= 1
-    /tp @s ~ ~1 ~
+    @s.tp(~ ~1 ~)
+    @s.effect(levitation C, 1s) hide
+
+    if(@s.up == 0) {
+        @s.effect(levitation) clear
+        /setblock ~ ~-1 ~ glass
+    }
 }
 
 tick {
