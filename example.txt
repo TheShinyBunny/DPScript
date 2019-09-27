@@ -8,7 +8,7 @@ tick {
 	if (sleepCooldown > 0) {
 		sleepCooldown--
 	} else {
-		@a[nbt=!{SleepTimer: 0s}] run sleeping()
+		@a[nbt=!{SleepTimer: 0s}].sleeping()
 	}
 	@a[nbt={SleepTimer:0s},sleepTimer > 0].sleepTimer = 0
 	@a[cancelSleep = 1] run cancel_sleep()

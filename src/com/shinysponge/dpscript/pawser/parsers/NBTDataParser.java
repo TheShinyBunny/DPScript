@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
+import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
@@ -13,11 +14,11 @@ public class NBTDataParser {
             return "data merge " + selector + " " + nbt;
         }
         tokens.expect('[');
-        String path = tokens.next(TokenType.STRING);
+        String path = tokens.next(TokenType.STRING,"NBT path");
         tokens.expect(']');
         if (tokens.skip("=")) {
             if (tokens.isNext("byte","short","int","long","float","double")) {
-                String type = tokens.next(TokenType.IDENTIFIER);
+                String type = tokens.next(TokenType.IDENTIFIER,null);
                 tokens.expect('(');
                 String cmd = parser.readExecuteRunCommand();
                 tokens.expect(')');
@@ -35,7 +36,7 @@ public class NBTDataParser {
                 return "data modify " + selector + " " + path + " set " + source;
             }
         } else if (tokens.skip(".")) {
-            String methodLabel = tokens.next(TokenType.IDENTIFIER);
+            String methodLabel = tokens.next(TokenType.IDENTIFIER,"NBT data method");
             String method = null;
             tokens.expect('(');
             if ("remove".equals(methodLabel) || "delete".equals(methodLabel)) {
@@ -43,7 +44,7 @@ public class NBTDataParser {
                 return "data remove " + selector + " " + path;
             }
             if ("insert".equals(methodLabel)) {
-                method = "insert " + tokens.next(TokenType.INT);
+                method = "insert " + tokens.next(TokenType.INT,"insertion index");
                 tokens.expect(',');
             }
             String source = parser.parseNBTSource();
@@ -61,6 +62,8 @@ public class NBTDataParser {
                 case "unshift":
                     method = "prepend";
                     break;
+                    default:
+                        parser.compilationError(ErrorType.UNKNOWN,"NBT data method " + method);
             }
             return "data modify " + selector + " " + path + " " + method + " " + source;
         } else {

@@ -1,19 +1,22 @@
 package com.shinysponge.dpscript.tokenizew;
 
-import java.util.Arrays;
+import com.shinysponge.dpscript.pawser.ErrorType;
+
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 public class TokenIterator implements Iterator<Token> {
 
+    private final ErrorConsumer errorConsumer;
     private List<Token> data;
     private int pos;
     private Token lastToken;
 
-    public TokenIterator(List<Token> data) {
+    public TokenIterator(List<Token> data, ErrorConsumer errorConsumer) {
         this.data = data;
         this.pos = 0;
+        this.errorConsumer = errorConsumer;
     }
 
     /**
@@ -44,6 +47,7 @@ public class TokenIterator implements Iterator<Token> {
     }
 
     public Token peek(int i) {
+        if (pos + i >= data.size()) return Token.EOD;
         return data.get(pos + i);
     }
 
@@ -73,28 +77,44 @@ public class TokenIterator implements Iterator<Token> {
     }
 
     public void expect(char c) {
-        expect("" + c);
+        if (!isNext(c + "")) {
+            skip();
+            error(ErrorType.EXPECTED, c + "");
+        } else {
+            skip();
+        }
     }
 
     public String expect(String... s) {
-        if (!isNext(s))
-            throw new RuntimeException("Expected " + Arrays.toString(s) + ", found " + peek());
+        if (!isNext(s)) {
+            skip();
+            error(ErrorType.EXPECTED, "one of (" + String.join(",", s) + ")");
+        }
         return nextValue();
     }
 
-    public Token expect(TokenType type) {
+    public Token expect(TokenType type, String message) {
         if(!isNext(type)) {
-            throw new RuntimeException("Expected " + type + ", found " + peek());
+            skip();
+            if (message != null) {
+                error(ErrorType.EXPECTED, message);
+                return new Token(peek().getPos(),TokenType.DUMMY,type.getDefault().toString());
+            }
         }
         return next();
     }
 
-    public void skip(TokenType type) {
-        if (isNext(type))
+    public boolean skip(TokenType type) {
+        if (isNext(type)) {
             skip();
+            return true;
+        }
+        return false;
     }
 
     public void nextLine() {
+        while (hasNext() && !isNext(TokenType.LINE_END))
+            skip();
         skip(TokenType.LINE_END);
     }
 
@@ -106,10 +126,18 @@ public class TokenIterator implements Iterator<Token> {
         return false;
     }
 
-    public String next(TokenType type) {
+    public String next(TokenType type, String desc) {
         if (isNext(type))
             return nextValue();
-        throw new RuntimeException("Expected " + type);
+        if (desc != null) {
+            error(ErrorType.EXPECTED, desc);
+        }
+        skip();
+        return type.getDefault().toString();
+    }
+
+    public void error(ErrorType type, String message) {
+        errorConsumer.onError(type,message);
     }
 
     public String previous() {
@@ -132,5 +160,12 @@ public class TokenIterator implements Iterator<Token> {
      */
     public void pushBack() {
         pos--;
+    }
+
+    @FunctionalInterface
+    public interface ErrorConsumer {
+
+        void onError(ErrorType type, String description);
+
     }
 }

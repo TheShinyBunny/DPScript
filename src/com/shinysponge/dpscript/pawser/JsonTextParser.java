@@ -11,10 +11,10 @@ import java.util.stream.Collectors;
 public class JsonTextParser {
 
     private static Map<String,TextComponentProperty> propertyMap = new HashMap<String, TextComponentProperty>() {{
-        put("text",(p)->"\"" + p.tokens.next(TokenType.STRING) + "\"");
+        put("text",(p)->"\"" + p.tokens.next(TokenType.STRING,"text value") + "\"");
         put("selector",(p)-> {
             if (p.tokens.isNext(TokenType.STRING)) {
-                return "\"" + SelectorParser.parseStringSelector(p.tokens.nextValue()) + "\"";
+                return "\"" + SelectorParser.parseStringSelector(p,p.tokens.nextValue()) + "\"";
             }
             return "\"" + p.selectors.parseSelector() + "\"";
         });
@@ -27,16 +27,16 @@ public class JsonTextParser {
         } else if (tokens.skip("{")) {
             Map<String,String> props = new HashMap<>();
             while (!tokens.isNext("}")) {
-                String key = tokens.next(TokenType.STRING);
+                String key = tokens.next(TokenType.STRING,"JSON key");
                 TextComponentProperty prop = propertyMap.get(key);
                 if (prop == null) {
-                    throw new RuntimeException("Unknown JSON text property '" + key + "'");
+                    parser.compilationError(ErrorType.UNKNOWN,"JSON text property '" + key + "'");
                 }
                 tokens.expect(':');
                 String value = prop.parse(parser);
                 props.put(key,value);
                 if (!tokens.skip(",") && !tokens.isNext("}")) {
-                    throw new RuntimeException("Expected } or , after a JSON property");
+                    parser.compilationError(ErrorType.EXPECTED,"} or , after a JSON property");
                 }
             }
             tokens.skip();
@@ -48,14 +48,15 @@ public class JsonTextParser {
                 if (tokens.skip(",")) {
                     arr += ",";
                 } else if (!tokens.isNext("]")) {
-                    throw new RuntimeException("Expected ] or , after a JSON array value");
+                    parser.compilationError(ErrorType.EXPECTED,"] or , after a JSON array value");
                 }
             }
             tokens.skip();
             arr += "]";
             return arr;
         }
-        throw new RuntimeException("Invalid JSON text value!");
+        parser.compilationError(ErrorType.INVALID,"JSON component");
+        return "{}";
     }
 
     public interface TextComponentProperty {

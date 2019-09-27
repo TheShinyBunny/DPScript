@@ -9,10 +9,11 @@ import java.util.List;
 public class ScoreCondition extends Condition {
 
     private final Value first;
-    private final String op;
+    private String op;
     private final Value second;
 
-    public ScoreCondition(Value first, String op, Value second) {
+    public ScoreCondition(Value first, String op, Value second, boolean negate) {
+        super(negate);
         this.first = first;
         this.op = op;
         this.second = second;
@@ -20,13 +21,22 @@ public class ScoreCondition extends Condition {
 
     @Override
     public List<String> toCommands(Parser parser, String command) {
-        if (first.isLiteral() && second.isLiteral()) throw new RuntimeException("Cannot compare two literal values!");
+        if (first.isLiteral() && second.isLiteral()) parser.compilationError(null,"Cannot compare two literal values!");
         if (first.isLiteral()) {
-            return Collections.singletonList("if score " + second + " matches " + first.toRange(op));
+            return Collections.singletonList(negation() + " score " + second + " matches " + first.toRange(op));
         } else if (second.isLiteral()){
-            return Collections.singletonList("if score " + first + " matches " + second.toRange(op));
+            return Collections.singletonList(negation() + " score " + first + " matches " + second.toRange(op));
         } else {
-            return Collections.singletonList("if score " + first + " " + op + " " + second);
+            return Collections.singletonList(negation() + " score " + first + " " + op + " " + second);
         }
+    }
+
+    @Override
+    public void negate() {
+        if (">".equals(op)) op = "<=";
+        else if ("<".equals(op)) op = ">=";
+        else if (">=".equals(op)) op = "<";
+        else if ("<=".equals(op)) op = ">";
+        else super.negate();
     }
 }

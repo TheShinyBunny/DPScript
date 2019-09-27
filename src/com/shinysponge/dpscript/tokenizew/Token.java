@@ -2,12 +2,19 @@ package com.shinysponge.dpscript.tokenizew;
 
 public class Token {
 
+    public static final Token EOD = new Token(CodePos.END, TokenType.LINE_END, "EOD");
+    private CodePos pos;
     private TokenType type;
     private final String value;
 
-    public Token(TokenType type, String value) {
+    public Token(CodePos pos, TokenType type, String value) {
+        this.pos = pos;
         this.type = type;
         this.value = value;
+    }
+
+    public CodePos getPos() {
+        return pos;
     }
 
     public TokenType getType() {

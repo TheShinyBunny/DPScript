@@ -8,12 +8,13 @@ import java.util.List;
 public class EntityExistsCondition extends Condition {
     private final String selector;
 
-    public EntityExistsCondition(String selector) {
+    public EntityExistsCondition(String selector, boolean negate) {
+        super(negate);
         this.selector = selector;
     }
 
     @Override
     public List<String> toCommands(Parser parser, String command) {
-        return Collections.singletonList("if entity " + selector);
+        return Collections.singletonList(negation() + " entity " + selector);
     }
 }

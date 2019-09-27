@@ -10,13 +10,14 @@ public class BlockCondition extends Condition {
     private String pos;
     private String block;
 
-    public BlockCondition(String pos, String block) {
+    public BlockCondition(String pos, String block, boolean negate) {
+        super(negate);
         this.pos = pos;
         this.block = block;
     }
 
     @Override
     public List<String> toCommands(Parser parser, String command) {
-        return Collections.singletonList("if block " + pos + " " + block);
+        return Collections.singletonList(negation() + " block " + pos + " " + block);
     }
 }

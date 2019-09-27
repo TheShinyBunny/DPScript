@@ -2,6 +2,9 @@
 const two = 2
 global test
 
+int test
+int score
+
 tick {
     clone ~ ~ ~ ~10 ~10 ~10 20 70 -36 filter(dropper[facing=west]) move
     @a[tag=cool].effect(poison)
@@ -20,12 +23,16 @@ tick {
     @a.gamemode = 0
 
     if (@a[gamemode=1].exists() && ~ ~1 ~ == dropper[facing=west] || ~ ~ ~, ~10 ~10 ~10 == mask(~ ~30 ~)) as @a {
-        print "There are people in creative mode!"
+        print "There are no people in creative mode!"
     }
+
+    @a.test = 5
+    @a.test += @a.score
+    @a.test = time.daytime
 }
 
 function hello {
-    if ((10 > two || two > test) || (5 < test && two < test)) {
+    if ((10 > two || two > test) || !(5 < test && two < test)) {
         print "Yes!"
     }
 }

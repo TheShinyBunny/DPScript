@@ -1,13 +1,9 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
-import com.shinysponge.dpscript.pawser.Enchantments;
-import com.shinysponge.dpscript.pawser.JsonTextParser;
-import com.shinysponge.dpscript.pawser.ObjectiveOperators;
-import com.shinysponge.dpscript.pawser.Parser;
+import com.shinysponge.dpscript.pawser.*;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 import com.shinysponge.dpscript.tokenizew.Tokenizer;
-import com.sun.org.apache.bcel.internal.generic.ObjectType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,7 +66,7 @@ public class SelectorParser {
 
             String criterion = "";
             if (addCriterion && tokens.skip("[")) {
-                criterion = tokens.next(TokenType.IDENTIFIER);
+                criterion = tokens.next(TokenType.IDENTIFIER,"advancement criterion");
                 tokens.expect(']');
             }
             tokens.expect(')');
@@ -101,13 +97,13 @@ public class SelectorParser {
         addSelectorMember((selector, cmds) -> {
             tokens.expect("(");
 
-            String fadeIn = tokens.expect(TokenType.INT).getValue();
+            String fadeIn = tokens.expect(TokenType.INT,"fade in value").getValue();
             tokens.expect(",");
 
-            String stay = tokens.expect(TokenType.INT).getValue();
+            String stay = tokens.expect(TokenType.INT,"stay value").getValue();
 
             tokens.expect(",");
-            String fadeOut = tokens.expect(TokenType.INT).getValue();
+            String fadeOut = tokens.expect(TokenType.INT,"fade out value").getValue();
 
             tokens.expect(")");
 
@@ -126,7 +122,9 @@ public class SelectorParser {
             String enchID = parser.parseResourceLocation(false);
             Enchantments ench = Enchantments.get(enchID);
             if (ench == null) {
-                throw new RuntimeException("Unknown enchantment ID " + ench);
+                tokens.pushBack();
+                parser.compilationError(ErrorType.UNKNOWN,"enchantment ID");
+                ench = Enchantments.PROTECTION;
             }
             int level = 1;
             if (tokens.isNext(TokenType.INT)) {
@@ -135,23 +133,23 @@ public class SelectorParser {
                 level = parser.readRomanNumber(tokens.nextValue());
             }
             if (level < 1) {
-                throw new RuntimeException("Invalid enchantment level! expected a positive number or a roman number.");
+                parser.compilationError(ErrorType.INVALID,"enchantment level, expected a positive number or a roman number.");
             }
             if (level > ench.getMaxLevel()) {
-                throw new RuntimeException("Enchantment " + ench + " level is greater than the maximum level (" + ench.getMaxLevel() + ")!");
+                parser.compilationError(ErrorType.INVALID,"Enchantment " + ench + " level! It's greater than " + ench + " max level (" + ench.getMaxLevel() + ")!");
             }
             tokens.expect(')');
             cmds.accept("enchant " + selector + " " + ench.name().toLowerCase() + " " + level);
         },"enchant","ench");
         addSelectorMember((selector,cmds)->{
             tokens.expect('(');
-            String tag = tokens.next(TokenType.IDENTIFIER);
+            String tag = tokens.next(TokenType.IDENTIFIER,"tag identifier");
             tokens.expect(')');
             cmds.accept("tag " + selector + " add " + tag);
         },"tag","addTag");
         addSelectorMember((selector,cmds)->{
             tokens.expect('(');
-            String tag = tokens.next(TokenType.IDENTIFIER);
+            String tag = tokens.next(TokenType.IDENTIFIER,"tag identifier");
             tokens.expect(')');
             cmds.accept("tag " + selector + " remove " + tag);
         },"untag","removeTag");
@@ -162,7 +160,7 @@ public class SelectorParser {
                 int amount = 1;
                 method = "add";
                 if (op.equals("+=") || op.equals("-=") || op.equals("=")) {
-                    amount = Integer.parseInt(tokens.next(TokenType.INT));
+                    amount = Integer.parseInt(tokens.next(TokenType.INT,"xp value"));
                 }
                 if (op.equals("--") || op.equals("-=")) {
                     amount = -amount;
@@ -218,11 +216,13 @@ public class SelectorParser {
 
     /**
      * Parses a selector from a literal string. Used for selectors inside JSON texts.
+     *
+     * @param p
      * @param selector The selector string
      * @return A vanilla selector string
      */
-    public static String parseStringSelector(String selector) {
-        TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(selector));
+    public static String parseStringSelector(Parser p, String selector) {
+        TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(p.file,selector),p::compilationError);
         return parseSelectorFrom(tokens);
     }
 
@@ -243,7 +243,8 @@ public class SelectorParser {
             type = true;
             target = "e[type=" + tokens.nextValue();
         } else {
-            throw new RuntimeException("Invalid target selector");
+            tokens.error(ErrorType.INVALID,"target selector");
+            target = "e";
         }
         String selector = "@" + target;
         if (tokens.skip("[")) {
@@ -253,21 +254,21 @@ public class SelectorParser {
                 selector += "[";
             }
             while (!tokens.skip("]")) {
-                String f = tokens.next(TokenType.IDENTIFIER);
+                String f = tokens.next(TokenType.IDENTIFIER,"selector field");
                 switch (f) {
                     case "name":
                         tokens.expect('=');
-                        selector += "name=" + tokens.next(TokenType.STRING);
+                        selector += "name=" + tokens.next(TokenType.STRING,"entity name");
                         break;
                     case "tag":
                         tokens.expect('=');
-                        selector += "tag=" + tokens.next(TokenType.IDENTIFIER);
+                        selector += "tag=" + tokens.next(TokenType.IDENTIFIER,"tag identifier");
                         break;
                     case "tags":
                         tokens.expect('=');
                         tokens.expect('(');
                         while (!tokens.skip(")")) {
-                            selector += "tag=" + tokens.next(TokenType.IDENTIFIER);
+                            selector += "tag=" + tokens.next(TokenType.IDENTIFIER,"tag identifier");
                             tokens.skip(",");
                         }
                         break;
@@ -284,7 +285,7 @@ public class SelectorParser {
                 if (tokens.skip(",")) {
                     selector += ",";
                 } else if (!tokens.isNext("]")) {
-                    throw new RuntimeException("Invalid entity selector, expected , or ]");
+                    tokens.error(ErrorType.INVALID,"entity selector: expected , or ]");
                 }
             }
             selector += "]";
@@ -298,12 +299,12 @@ public class SelectorParser {
         List<String> cmds = new ArrayList<>();
         String selector = parseSelector();
         if (tokens.skip(".")) {
-            String field = tokens.next(TokenType.IDENTIFIER);
+            String field = tokens.next(TokenType.IDENTIFIER,"selector field");
             for (SelectorMember m : selectorMembers) {
                 for (String id : m.getIdentifiers()) {
                     if (id.equals(field)) {
                         m.parse(selector,parser,cmds::add);
-                        break;
+                        return cmds;
                     }
                 }
             }
@@ -315,9 +316,9 @@ public class SelectorParser {
                 case "container":
                 case "villager":{
                     tokens.expect('[');
-                    int slot = Integer.parseInt(tokens.next(TokenType.INT));
+                    int slot = Integer.parseInt(tokens.next(TokenType.INT,"slot index"));
                     if (slot < 0 || slot >= Parser.INVENTORY_SIZES.get(field))
-                        throw new RuntimeException("Inventory/Enderchest slot index is out of bounds!");
+                        parser.compilationError(ErrorType.INVALID,"Inventory/Enderchest slot index, it's out of bounds!");
                     tokens.expect(']');
                     tokens.expect('=');
                     String item = parser.parseItemAndCount();
@@ -349,6 +350,16 @@ public class SelectorParser {
                     break;
                 }
                 default:
+                    if (tokens.peek().getValue().equals("(")) {
+                        if (parser.findFunction(field)) {
+                            tokens.expect(')');
+                            cmds.add("execute as " + selector + " at @s run function " + field);
+                            return cmds;
+                        } else {
+                            parser.compilationError(ErrorType.UNKNOWN,"function " + field + "()");
+                            return cmds;
+                        }
+                    }
                     if (parser.hasObjective(field)) {
                         for (ObjectiveOperators op : ObjectiveOperators.values()) {
                             if (tokens.skip(op.getOperator())) {
@@ -359,8 +370,8 @@ public class SelectorParser {
                                 } else if (tokens.isNext(TokenType.INT)) {
                                     int value = Integer.parseInt(tokens.nextValue());
                                     if (op.getLiteralCommand() == null) {
-                                        String constSource = parser.createConstant(value);
-                                        cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + constSource + " Constants");
+                                        parser.createConstant(String.valueOf(value),value);
+                                        cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + value + " Constants");
                                     } else {
                                         cmds.add("scoreboard players " + op.getLiteralCommand() + " " + selector + " " + field + " " + value);
                                     }
@@ -369,12 +380,13 @@ public class SelectorParser {
                                     cmds.add(parser.parseExecuteStore("score " + selector + " " + field));
                                     return cmds;
                                 }
-                                throw new RuntimeException("Expected a literal value or another score after score operator");
+                                parser.compilationError(ErrorType.EXPECTED,"a literal value or another score after score operator");
+                                return cmds;
                             }
                         }
-                        throw new RuntimeException("Invalid score operation " + tokens.peek());
+                        parser.compilationError(ErrorType.INVALID,"score operation");
                     } else {
-                        throw new RuntimeException("Unknown field for selector " + selector + " : " + field);
+                        parser.compilationError(ErrorType.UNKNOWN,"selector field " + field);
                     }
             }
         }
@@ -388,8 +400,8 @@ public class SelectorParser {
     public String parseObjectiveSelector() {
         String selector = parseSelector();
         tokens.expect('.');
-        String obj = tokens.next(TokenType.IDENTIFIER);
-        if (!parser.hasObjective(obj)) throw new RuntimeException("Unknown objective " + obj);
+        String obj = tokens.next(TokenType.IDENTIFIER,"objective name");
+        if (!parser.hasObjective(obj)) parser.compilationError(ErrorType.UNKNOWN,"objective " + obj);
         return selector + " " + obj;
     }
 }

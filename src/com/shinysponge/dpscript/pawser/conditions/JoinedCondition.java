@@ -12,7 +12,8 @@ public class JoinedCondition extends Condition {
     private Condition left;
     private Condition right;
 
-    public JoinedCondition(String op, Condition left, Condition right) {
+    public JoinedCondition(String op, Condition left, Condition right, boolean negate) {
+        super(negate);
         this.op = op;
         this.left = left;
         this.right = right;
@@ -20,6 +21,8 @@ public class JoinedCondition extends Condition {
 
     @Override
     public List<String> toCommands(Parser parser, String command) {
+        if (negate) left.negate();
+        if (negate) right.negate();
         if (op.equals("||")) {
             List<String> tempCmds = left.toCommands(parser, command);
             if (!(left instanceof JoinedCondition))
@@ -41,5 +44,13 @@ public class JoinedCondition extends Condition {
             }
             return leftCmds;
         }
+    }
+
+    public Condition getLeft() {
+        return left;
+    }
+
+    public Condition getRight() {
+        return right;
     }
 }
