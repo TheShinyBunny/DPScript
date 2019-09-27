@@ -1,6 +1,7 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinysponge.dpscript.pawser.*;
+import com.shinysponge.dpscript.tokenizew.Token;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 import com.shinysponge.dpscript.tokenizew.Tokenizer;
@@ -349,9 +350,23 @@ public class SelectorParser {
                     cmds.add("replaceitem entity " + selector + " armor." + Parser.ARMOR_SLOT_NAMES.get(field) + " " + item + " " + parser.readOptionalInt());
                     break;
                 }
+                case "enable": {
+                    // Trigger enabling
+                    tokens.expect("(");
+                    Token identifier = tokens.expect(TokenType.IDENTIFIER, "Trigger name");
+                    tokens.expect(")");
+
+                    if(parser.hasTrigger(identifier.getValue())) {
+                        cmds.add("scoreboard players enable " + selector + " " + identifier.getValue());
+                    } else {
+                        parser.compilationError(ErrorType.UNKNOWN, "trigger " + identifier.getValue());
+                    }
+                    break;
+                }
                 default:
                     if (tokens.peek().getValue().equals("(")) {
                         if (parser.findFunction(field)) {
+                            tokens.next();
                             tokens.expect(')');
                             cmds.add("execute as " + selector + " at @s run function " + field);
                             return cmds;
