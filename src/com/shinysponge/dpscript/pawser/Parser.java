@@ -33,6 +33,7 @@ public class Parser {
     private List<String> triggers = new ArrayList<>();
     private List<String> originalCode;
     private List<CompilationError> errors = new ArrayList<>();
+    private Condition lastIf;
 
 
     public Parser(File file) {
@@ -48,7 +49,7 @@ public class Parser {
     private static List<String> getCode(File file) {
         try {
             return Files.readAllLines(file.toPath()).stream()
-                    .filter(s -> !s.trim().startsWith("#") || !s.trim().startsWith("//"))
+                    .map(s -> s.trim().startsWith("#") || s.trim().startsWith("//") ? "" : s)
                     .collect(Collectors.toList());
         } catch (IOException e) {
             e.printStackTrace();
@@ -207,7 +208,12 @@ public class Parser {
             list.add(tokens.nextValue());
             return list;
         }
-
+        if (lastIf != null && tokens.skip("else")) {
+            list.addAll(parseElse(lastIf));
+            lastIf = null;
+            return list;
+        }
+        lastIf = null;
         String token = tokens.nextValue();
         switch (token){
             case "{":
@@ -358,7 +364,7 @@ public class Parser {
                     } else {
                         list.add("time set " + tokens.expect("day","night","midnight","noon"));
                     }
-                } else if (tokens.isNext("+=")) {
+                } else if (tokens.skip("+=")) {
                     list.add("time add " + tokens.next(TokenType.INT,"an integer indicating the time in ticks to add"));
                 } else if (tokens.skip(".")) {
                     list.add("time query " + tokens.expect("day","daytime","gametime"));
@@ -383,6 +389,10 @@ public class Parser {
                 tokens.expect(')');
                 tokens.expect('.');
                 list.add(readBlockCommand(pos));
+                break;
+            case "while":
+                list.addAll(parseWhile());
+                break;
             default:
                 if (tokens.skipAll("(",")")) {
                     if (functions.containsKey(token)) {
@@ -893,9 +903,29 @@ public class Parser {
 
     private List<String> parseIf() {
         Condition cond = parseCondition(false);
-        if (cond == null) return new ArrayList<>();
         String command = readExecuteRunCommand();
-        return cond.toCommands(this, command).stream().map(c->"execute " + c + (cond instanceof JoinedCondition ? "" : " run " + command)).collect(Collectors.toList());
+        List<String> cmds = cond.toCommandsAll(this, command);
+        if (tokens.skip("else")) {
+            cmds.addAll(parseElse(cond));
+        } else {
+            lastIf = cond;
+        }
+        return cmds;
+    }
+
+    private List<String> parseElse(Condition condition) {
+        String command = readExecuteRunCommand();
+        condition.negate();
+        return condition.toCommandsAll(this,command);
+    }
+
+    private List<String> parseWhile() {
+        Condition condition = parseCondition(false);
+        List<String> then = parseStatement();
+        String func = generateFunction(then);
+        List<String> condCommands = condition.toCommandsAll(this,"function " + func);
+        functions.get(func).addAll(condCommands);
+        return condCommands;
     }
 
     /**
@@ -944,7 +974,7 @@ public class Parser {
             case IDENTIFIER:
                 if (!globals.contains(t.getValue()) && !consts.containsKey(t.getValue())) {
                     tokens.pushBack();
-                    compilationError(ErrorType.UNKNOWN, "Unknown constant or global");
+                    compilationError(ErrorType.UNKNOWN, "constant or global " + t.getValue());
                 }
                 return parseScoreOperators(getVariableAccess(t.getValue()),false);
             case INT:
@@ -957,7 +987,7 @@ public class Parser {
                     } catch (Exception e) {
                         tokens.pushBack();
                         compilationError(ErrorType.INVALID,"token in condition");
-                        return null;
+                        return Condition.DUMMY;
                     }
                     if (tokens.skip(",")) {
                         String end = readPosition();
@@ -1034,7 +1064,7 @@ public class Parser {
                 negate = true;
                 break;
                 default:
-                    return null;
+                    return new ScoreCondition(new Value(first,literal),"noop",new Value("",false),false);
         }
         tokens.skip();
         Token secondTok = tokens.next();
@@ -1151,7 +1181,9 @@ public class Parser {
         if (functions.containsKey(name)) {
             return true;
         }
-        return originalCode.stream().anyMatch(s->s.trim().startsWith("function ") && s.substring("function".length(),s.indexOf('(') > "function".length() ? s.indexOf('(') : s.length()).trim().equals(name));
+        return originalCode.stream().anyMatch(s->{
+            return s.trim().startsWith("function ") && s.substring("function".length(),s.indexOf('{') > "function".length() ? s.indexOf('{') : s.length()).trim().equals(name);
+        });
     }
 
     public boolean hasTrigger(String name) {

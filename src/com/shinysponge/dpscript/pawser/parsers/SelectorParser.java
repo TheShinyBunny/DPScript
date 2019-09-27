@@ -188,13 +188,18 @@ public class SelectorParser {
             tokens.expect('(');tokens.expect(')');
             cmds.accept("kill " + selector);
         },"kill","remove","die","despawn","sendToHeaven");
-
         addSelectorMember((selector, cmds) -> {
             tokens.expect("(");
             String pos = parser.readPosition();
             tokens.expect(")");
             cmds.accept("tp " + selector + " " + pos);
         }, "tp");
+        addSelectorMember((selector, cmds)->{
+            tokens.expect('(');
+            String json = JsonTextParser.readTextComponent(parser);
+            tokens.expect(')');
+            cmds.accept("tellraw " + selector + " " + json);
+        },"tellraw","tell");
     }
 
     private void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {

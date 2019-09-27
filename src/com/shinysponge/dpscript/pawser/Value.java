@@ -27,28 +27,15 @@ public class Value {
         if (literal) {
             int n = Integer.parseInt(str);
             if ("=".equals(op)) return str;
-            if (literal) {
-                switch (op) {
-                    case ">":
-                        return ".." + (n - 1);
-                    case ">=":
-                        return ".." + n;
-                    case "<":
-                        return (n + 1) + "..";
-                    case "<=":
-                        return n + "..";
-                }
-            } else {
-                switch (op) {
-                    case ">":
-                        return (n + 1) + "..";
-                    case ">=":
-                        return n + "..";
-                    case "<":
-                        return ".." + (n - 1);
-                    case "<=":
-                        return ".." + n;
-                }
+            switch (op) {
+                case ">":
+                    return (n + 1) + "..";
+                case ">=":
+                    return n + "..";
+                case "<":
+                    return ".." + (n - 1);
+                case "<=":
+                    return ".." + n;
             }
             return "InvalidRange";
         }

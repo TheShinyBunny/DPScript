@@ -7,7 +7,7 @@ import java.io.File;
 public class DPScript {
 
     public static void main(String[] args) throws Exception {
-        File f = new File("up_trigger.dps");
+        File f = new File("example.txt");
         Parser.pawse(f);
     }
 

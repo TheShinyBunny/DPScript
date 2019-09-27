@@ -16,7 +16,20 @@ public class JsonTextParser {
             if (p.tokens.isNext(TokenType.STRING)) {
                 return "\"" + SelectorParser.parseStringSelector(p,p.tokens.nextValue()) + "\"";
             }
+            p.tokens.expect('@');
             return "\"" + p.selectors.parseSelector() + "\"";
+        });
+        put("color",(p)->{
+           return "\"" + p.tokens.expect("red","green","blue","yellow","block","purple") + "\"";
+        });
+        put("runs",(p)->{
+            return "{\"action\":\"run_command\",\"value\":\"" + p.tokens.next(TokenType.STRING,"command to run") + "\"}";
+        });
+        put("hover",(p)->{
+            if (p.tokens.isNext(TokenType.STRING)) {
+                return "{\"action\":\"show_text\",\"value\":\"" + p.tokens.nextValue() + "\"}";
+            }
+            return readTextComponent(p);
         });
     }};
 
@@ -31,6 +44,7 @@ public class JsonTextParser {
                 TextComponentProperty prop = propertyMap.get(key);
                 if (prop == null) {
                     parser.compilationError(ErrorType.UNKNOWN,"JSON text property '" + key + "'");
+                    break;
                 }
                 tokens.expect(':');
                 String value = prop.parse(parser);
