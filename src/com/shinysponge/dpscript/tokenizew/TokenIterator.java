@@ -39,6 +39,7 @@ public class TokenIterator implements Iterator<Token> {
      */
     @Override
     public Token next() {
+        if (pos >= data.size()) return Token.EOD;
         return lastToken = data.get(pos++);
     }
 
@@ -77,18 +78,13 @@ public class TokenIterator implements Iterator<Token> {
     }
 
     public void expect(char c) {
-        if (!isNext(c + "")) {
-            skip();
-            error(ErrorType.EXPECTED, c + "");
-        } else {
-            skip();
-        }
+        expect(c + "");
     }
 
     public String expect(String... s) {
         if (!isNext(s)) {
             skip();
-            error(ErrorType.EXPECTED, "one of (" + String.join(",", s) + ")");
+            error(ErrorType.EXPECTED, s.length == 1 ? s[0] : "one of (" + String.join(",", s) + ")");
         }
         return nextValue();
     }

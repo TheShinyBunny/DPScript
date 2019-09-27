@@ -5,7 +5,8 @@ public enum ErrorType {
     MISSING("Missing"),
     INVALID("Invalid"),
     DUPLICATE("Duplicate"),
-    UNKNOWN("Unknown");
+    UNKNOWN("Unknown"),
+    INVALID_STATEMENT("Invalid statement");
 
     private final String name;
 

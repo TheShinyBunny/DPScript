@@ -223,10 +223,10 @@ public class SelectorParser {
      */
     public static String parseStringSelector(Parser p, String selector) {
         TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(p.file,selector),p::compilationError);
-        return parseSelectorFrom(tokens);
+        return parseSelectorFrom(p,tokens);
     }
 
-    public static String parseSelectorFrom(TokenIterator tokens) {
+    public static String parseSelectorFrom(Parser parser, TokenIterator tokens) {
         String target;
         boolean type = false;
         if (tokens.skip("all","any","e","entity","entities")) {
@@ -253,6 +253,7 @@ public class SelectorParser {
             } else {
                 selector += "[";
             }
+            List<String> scores = new ArrayList<>();
             while (!tokens.skip("]")) {
                 String f = tokens.next(TokenType.IDENTIFIER,"selector field");
                 switch (f) {
@@ -276,17 +277,49 @@ public class SelectorParser {
                     case "gamemode":
                         tokens.expect("=");
                         selector += "gamemode=" + Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes);
-                    case "scores":
+                    case "nbt":
+                        tokens.expect('=');
+                        boolean negate = tokens.skip("!");
+                        selector += "nbt=" + (negate ? "!" : "") + Parser.parseNBT(tokens);
                         break;
-                    case "rot":
-                    case "rotation":
-
+                        default:
+                            if (parser.hasObjective(f)) {
+                                String op = tokens.expect(">","<",">=","<=","=","==");
+                                int value = Integer.parseInt(tokens.next(TokenType.INT,"objective value"));
+                                String range = "0";
+                                switch (op) {
+                                    case ">":
+                                        range = (value + 1) + "..";
+                                        break;
+                                    case "<":
+                                        range = ".." + (value - 1);
+                                        break;
+                                    case ">=":
+                                        range = value + "..";
+                                        break;
+                                    case "<=":
+                                        range = ".." + value;
+                                        break;
+                                    case "=":
+                                    case "==":
+                                        range = value + "";
+                                        break;
+                                        default:
+                                            break;
+                                }
+                                scores.add(f + "=" + range);
+                            } else {
+                                tokens.error(ErrorType.UNKNOWN,"selector field");
+                            }
                 }
                 if (tokens.skip(",")) {
                     selector += ",";
                 } else if (!tokens.isNext("]")) {
                     tokens.error(ErrorType.INVALID,"entity selector: expected , or ]");
                 }
+            }
+            if (!scores.isEmpty()) {
+                selector += "scores={" + String.join(",",scores) + "}";
             }
             selector += "]";
         } else if (type){
@@ -361,30 +394,7 @@ public class SelectorParser {
                         }
                     }
                     if (parser.hasObjective(field)) {
-                        for (ObjectiveOperators op : ObjectiveOperators.values()) {
-                            if (tokens.skip(op.getOperator())) {
-                                if (tokens.skip("@")) {
-                                    String source = parseObjectiveSelector();
-                                    cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + source);
-                                    return cmds;
-                                } else if (tokens.isNext(TokenType.INT)) {
-                                    int value = Integer.parseInt(tokens.nextValue());
-                                    if (op.getLiteralCommand() == null) {
-                                        parser.createConstant(String.valueOf(value),value);
-                                        cmds.add("scoreboard players operation " + selector + " " + field + " " + op.getOperationOperator() + " " + value + " Constants");
-                                    } else {
-                                        cmds.add("scoreboard players " + op.getLiteralCommand() + " " + selector + " " + field + " " + value);
-                                    }
-                                    return cmds;
-                                } else if (op == ObjectiveOperators.EQUALS) {
-                                    cmds.add(parser.parseExecuteStore("score " + selector + " " + field));
-                                    return cmds;
-                                }
-                                parser.compilationError(ErrorType.EXPECTED,"a literal value or another score after score operator");
-                                return cmds;
-                            }
-                        }
-                        parser.compilationError(ErrorType.INVALID,"score operation");
+                        cmds.addAll(parseScoreOperators(selector + " " + field));
                     } else {
                         parser.compilationError(ErrorType.UNKNOWN,"selector field " + field);
                     }
@@ -394,7 +404,7 @@ public class SelectorParser {
     }
 
     public String parseSelector() {
-        return parseSelectorFrom(this.tokens);
+        return parseSelectorFrom(parser,tokens);
     }
 
     public String parseObjectiveSelector() {
@@ -403,5 +413,34 @@ public class SelectorParser {
         String obj = tokens.next(TokenType.IDENTIFIER,"objective name");
         if (!parser.hasObjective(obj)) parser.compilationError(ErrorType.UNKNOWN,"objective " + obj);
         return selector + " " + obj;
+    }
+
+    public List<String> parseScoreOperators(String access) {
+        List<String> cmds = new ArrayList<>();
+        for (ObjectiveOperators op : ObjectiveOperators.values()) {
+            if (tokens.skip(op.getOperator())) {
+                if (tokens.skip("@")) {
+                    String source = parseObjectiveSelector();
+                    cmds.add("scoreboard players operation " + access + " " + op.getOperationOperator() + " " + source);
+                    return cmds;
+                } else if (tokens.isNext(TokenType.INT)) {
+                    int value = Integer.parseInt(tokens.nextValue());
+                    if (op.getLiteralCommand() == null) {
+                        parser.createConstant(String.valueOf(value),value);
+                        cmds.add("scoreboard players operation " + access + " " + op.getOperationOperator() + " " + value + " Constants");
+                    } else {
+                        cmds.add("scoreboard players " + op.getLiteralCommand() + " " + access + " " + value);
+                    }
+                    return cmds;
+                } else if (op == ObjectiveOperators.EQUALS) {
+                    cmds.add(parser.parseExecuteStore("score " + access));
+                    return cmds;
+                }
+                parser.compilationError(ErrorType.EXPECTED,"a literal value or another score after score operator");
+                return cmds;
+            }
+        }
+        parser.compilationError(ErrorType.INVALID,"score operation");
+        return cmds;
     }
 }
