@@ -202,6 +202,12 @@ public class Parser {
 
     private List<String> parseNormal() {
         List<String> list = new ArrayList<>();
+
+        if(tokens.isNext(TokenType.RAW_COMMAND)) {
+            list.add(tokens.nextValue());
+            return list;
+        }
+
         String token = tokens.nextValue();
         switch (token){
             case "{":

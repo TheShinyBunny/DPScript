@@ -17,6 +17,7 @@ public class TokenIterator implements Iterator<Token> {
         this.data = data;
         this.pos = 0;
         this.errorConsumer = errorConsumer;
+        System.out.println(data);
     }
 
     /**

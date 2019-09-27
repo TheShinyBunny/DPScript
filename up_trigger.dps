@@ -3,6 +3,7 @@ int down
 
 function tick_up {
     @s.up -= 1
+    /tp @s ~ ~1 ~
 }
 
 tick {
