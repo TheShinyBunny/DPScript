@@ -154,15 +154,6 @@ public class Parser {
                 createGlobal(name);
                 break;
             }
-            case "trigger": {
-                String name = tokens.next(TokenType.IDENTIFIER,"trigger name");
-                if (hasObjective(name)) {
-                    compilationError(ErrorType.DUPLICATE,"variable " + name);
-                }
-                objectives.add(name);
-                loadCommands.add("scoreboard objectives add " + name + " trigger");
-                break;
-            }
             case "int": {
                 String name = tokens.next(TokenType.IDENTIFIER,"a variable name");
                 if (hasObjective(name)) {
