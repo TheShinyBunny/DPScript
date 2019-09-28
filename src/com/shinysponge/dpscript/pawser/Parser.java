@@ -14,10 +14,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * This is a vewy kewl pawsew by pwetty
+ * This is the main class to parse the DPScript code.
+ * It's very long and complex, but it works wonders.
+ * To use it, just call {@link #pawse(File)}.
  */
 public class Parser {
-
 
     private ScopeType scope;
     public TokenIterator tokens;
@@ -58,10 +59,18 @@ public class Parser {
         return new ArrayList<>();
     }
 
+    /**
+     * Pawses the given code file.
+     * @param file The file to read from
+     */
     public static void pawse(File file) {
         new Parser(file).parse();
     }
 
+    /**
+     * The root function of pawsing. Loops through the entire code and reads it statement by statement.
+     * When it's done, prints out compilation errors if there are any, or otherwise, prints the generated functions.
+     */
     private void parse() {
         while (tokens.hasNext()) {
             if (tokens.skip(TokenType.LINE_END)) {
@@ -91,6 +100,15 @@ public class Parser {
         }
     }
 
+    /**
+     * Tells the parser that there is an error with the parsed code, and it should be informed to the user.<br/>
+     * Note that this will not throw a {@link CompilationError}, but rather will add it to {@link #errors}.<br/>
+     * When the {@link #parse()} method is done, it will output all errors if there are any.<br/>
+     * If you use any ErrorType <b>besides</b> {@link ErrorType#UNKNOWN}, {@link ErrorType#MISSING}, {@link ErrorType#DUPLICATE} or {@link ErrorType#INVALID_STATEMENT},
+     * you need make sure to have the next token be the problematic one, so it can be added to the error message.
+     * @param type The error type. Used for different error message formats and as the first word in the message itself.
+     * @param description A description about the error. For example, when expecting an integer index: ErrorType = {@link ErrorType#EXPECTED}, description = "array index". Will be formatted as "Expected array index, found: Hello"
+     */
     public void compilationError(ErrorType type, String description) {
         String msg;
         CodePos pos = tokens.peek().getPos();
@@ -107,6 +125,10 @@ public class Parser {
         errors.add(new CompilationError(msg,pos));
     }
 
+    /**
+     * Parses a single statement, or a block of statements. Will call either {@link #parseGlobal()} or {@link #parseNormal()} depending on the current {@link #scope ScopeType}.
+     * @return The command translated from the statement, or multiple commands if it was a block statement or a conditional statement with || operator/s.
+     */
     public List<String> parseStatement() {
         List<String> list = new ArrayList<>();
         if (tokens.skip(TokenType.LINE_END)) return list;
@@ -1062,9 +1084,11 @@ public class Parser {
                 op = "=";
                 break;
             case "!=":
+                op = "=";
                 negate = true;
                 break;
                 default:
+                    compilationError(ErrorType.INVALID,"operator in condition");
                     return new ScoreCondition(new Value(first,literal),"noop",new Value("",false),false);
         }
         tokens.skip();
@@ -1178,6 +1202,12 @@ public class Parser {
         loadCommands.add("scoreboard objectives add Constants dummy");
     }
 
+    /**
+     * Whether the specified function name exists: if it is found in the {@link #functions} map, will return true.<br/>
+     * Otherwise, will go through all of the original code and look for lines starting with <code>function [name]</code>, and compare the name.
+     * @param name The function name (without namespace)
+     * @return Whether that function exists.
+     */
     public boolean findFunction(String name) {
         if (functions.containsKey(name)) {
             return true;

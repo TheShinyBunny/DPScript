@@ -10,8 +10,8 @@ import java.util.stream.Collectors;
 
 public class JsonTextParser {
 
-    private static Map<String, JsonProperty> translateProps = new HashMap<String, JsonProperty>(){{
-       put("key",(ctx)->JsonValue.str(ctx.tokens.next(TokenType.STRING,"translation key")));
+    private static final Map<String, JsonProperty> translateProps = new HashMap<String, JsonProperty>(){{
+       put("key",(ctx)->ctx.nextString("translation key"));
        put("args",(ctx)->{
            JsonValue value = readJson(ctx);
            if (value.value != null) {
@@ -23,8 +23,18 @@ public class JsonTextParser {
        });
     }};
 
-    private static Map<String, JsonProperty> propertyMap = new HashMap<String, JsonProperty>() {{
-        put("text",(ctx)->JsonValue.str(ctx.tokens.next(TokenType.STRING,"text value")));
+    private static final Map<String, JsonProperty> hoverEventProps = new HashMap<String, JsonProperty>() {{
+       put("action",ctx -> JsonValue.str(ctx.tokens.expect("show_text","show_item","show_entity")));
+       put("value", ctx -> ctx.nextString("hover event value"));
+    }};
+
+    private static final Map<String, JsonProperty> clickEventProps = new HashMap<String, JsonProperty>() {{
+        put("action",ctx -> JsonValue.str(ctx.tokens.expect("open_url","open_file","run_command","suggest_command","change_page")));
+        put("value", ctx -> ctx.nextString("hover event value"));
+    }};
+
+    private static final Map<String, JsonProperty> propertyMap = new HashMap<String, JsonProperty>() {{
+        put("text",(ctx)->ctx.nextString("plain text"));
         put("selector",(ctx)-> {
             if (ctx.tokens.isNext(TokenType.STRING)) {
                 return JsonValue.str(SelectorParser.parseStringSelector(ctx.parser,ctx.tokens.nextValue()));
@@ -33,17 +43,18 @@ public class JsonTextParser {
             return JsonValue.str(ctx.parser.selectors.parseSelector());
         });
         put("color",(ctx)->{
-           return JsonValue.str(ctx.tokens.expect("red","green","blue","yellow","block","purple"));
+           return JsonValue.str(ctx.tokens.expect("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white", "reset"));
         });
         put("runs",(ctx)->{
-            return new JsonValue("clickEvent","{\"action\":\"run_command\",\"value\":\"" + ctx.tokens.next(TokenType.STRING,"command to run") + "\"}");
+            return new JsonValue("clickEvent","{\"action\":\"run_command\",\"value\":\"/" + ctx.tokens.next(TokenType.STRING,"command to run") + "\"}");
         });
         put("hover",(ctx)->{
             if (ctx.tokens.isNext(TokenType.STRING)) {
                 return new JsonValue("hoverEvent","{\"action\":\"show_text\",\"value\":\"" + ctx.tokens.nextValue() + "\"}");
             }
-            return new JsonValue("hoverEvent","{\"action\":\"show_text\",\"value\":\"" + readTextComponent(ctx.parser) + "\"}");
+            return readJson(ctx.withProps(hoverEventProps));
         });
+        put("click", (ctx -> readJson(ctx.withProps(clickEventProps))));
         put("translate",(ctx)->{
             JsonValue value = readJson(ctx.withProps(translateProps));
             if (value.elements != null && value.elements.containsKey("args")) {
@@ -51,10 +62,17 @@ public class JsonTextParser {
             }
             return value.require(ctx,"key");
         });
+        put("bold", Context::nextBoolean);
+        put("italic", Context::nextBoolean);
+        put("underlined",Context::nextBoolean);
+        put("strikethrough",Context::nextBoolean);
+        put("obfuscated",Context::nextBoolean);
+        put("insertion",(ctx)->ctx.nextString("insertion text"));
     }};
 
+
     public static String readTextComponent(Parser parser) {
-        return readJson(new Context(parser,null,propertyMap)).toString();
+        return readJson(new Context(parser,new HashMap<>(),propertyMap)).toString();
     }
 
     public static JsonValue readJson(Context ctx) {
@@ -131,6 +149,14 @@ public class JsonTextParser {
 
         public Context withParent(Map<String, JsonValue> parent) {
             return new Context(parser,parent,props);
+        }
+
+        public JsonValue nextBoolean() {
+            return new JsonValue(null,Boolean.parseBoolean(tokens.expect("true","false")));
+        }
+
+        public JsonValue nextString(String desc) {
+            return JsonValue.str(tokens.next(TokenType.STRING,desc));
         }
     }
 
