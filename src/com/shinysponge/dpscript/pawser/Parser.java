@@ -1,6 +1,7 @@
 package com.shinysponge.dpscript.pawser;
 
 import com.shinysponge.dpscript.pawser.conditions.*;
+import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
 import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
 import com.shinysponge.dpscript.tokenizew.*;

@@ -446,7 +446,10 @@ public class SelectorParser {
         List<String> cmds = new ArrayList<>();
         for (ObjectiveOperators op : ObjectiveOperators.values()) {
             if (tokens.skip(op.getOperator())) {
-                if (tokens.skip("@")) {
+                if (op.isUnary()) {
+                    cmds.add("scoreboard players " + op.getLiteralCommand() + " " + access + " " + 1);
+                    return cmds;
+                } else if (tokens.skip("@")) {
                     String source = parseObjectiveSelector();
                     cmds.add("scoreboard players operation " + access + " " + op.getOperationOperator() + " " + source);
                     return cmds;

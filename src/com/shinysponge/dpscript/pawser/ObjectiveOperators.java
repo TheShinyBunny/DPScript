@@ -9,15 +9,23 @@ public enum ObjectiveOperators {
     MODULUS("%="),
     LESS_THAN(null,"<","<="),
     GREATER_THAN(null,">",">="),
-    SWAP("><");
+    SWAP("><"),
+    INCREMENT("add","++",true),
+    DECREMENT("remove","--",true);
 
 
     private final String literalCommand;
     private final String operator;
     private final String operationOperator;
+    private boolean unary;
 
     ObjectiveOperators(String literalCommand, String operator) {
         this(literalCommand,operator,operator);
+    }
+
+    ObjectiveOperators(String literalCommand, String operator, boolean unary) {
+        this(literalCommand, operator);
+        this.unary = unary;
     }
 
     ObjectiveOperators(String literalCommand, String operator, String operationOperator) {
@@ -40,5 +48,9 @@ public enum ObjectiveOperators {
 
     public String getOperator() {
         return operator;
+    }
+
+    public boolean isUnary() {
+        return unary;
     }
 }

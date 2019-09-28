@@ -7,7 +7,7 @@ int sleepTimer
 
 tick {
 	if (sleepCooldown > 0) {
-		sleepCooldown -= 1
+		sleepCooldown--
 	} else {
 		@a[nbt=!{SleepTimer: 0s}].sleeping()
 	}
@@ -19,10 +19,10 @@ tick {
 function sleeping {
 	@a.enable(cancelSleep)
 	if (@s.sleepTimer == 1) {
-		@a[nbt={dimension: "overworld"}].tellraw([{"selector":@s},{"text":" is now sleeping. "},{"text":"[NO!]","color":"red","runs":"trigger cancelSleep","hover":"Click here if you need the night!"}])
+		@a[nbt={dimension: "overworld"}].tellraw([{selector:@s},{translate:{key:"chat.status"}},{text:"[NO!]",color:red,runs:"trigger cancelSleep",hover:"Click here if you need the night!"}])
 	}
 	if (@s.sleepTimer < SLEEP_DURATION) {
-		@s.sleepTimer += 1
+		@s.sleepTimer++
 	} else {
 	    dayTime = time.daytime
 		while (dayTime > 10000 && dayTime < 24000) {
