@@ -14,11 +14,11 @@ public class NBTDataParser {
             return "data merge " + selector + " " + nbt;
         }
         tokens.expect('[');
-        String path = tokens.next(TokenType.STRING,"NBT path");
+        String path = tokens.expect(TokenType.STRING,"NBT path");
         tokens.expect(']');
         if (tokens.skip("=")) {
             if (tokens.isNext("byte","short","int","long","float","double")) {
-                String type = tokens.next(TokenType.IDENTIFIER,null);
+                String type = tokens.expect(TokenType.IDENTIFIER,null);
                 tokens.expect('(');
                 String cmd = parser.readExecuteRunCommand();
                 tokens.expect(')');
@@ -36,7 +36,7 @@ public class NBTDataParser {
                 return "data modify " + selector + " " + path + " set " + source;
             }
         } else if (tokens.skip(".")) {
-            String methodLabel = tokens.next(TokenType.IDENTIFIER,"NBT data method");
+            String methodLabel = tokens.expect(TokenType.IDENTIFIER,"NBT data method");
             String method = null;
             tokens.expect('(');
             if ("remove".equals(methodLabel) || "delete".equals(methodLabel)) {
@@ -44,7 +44,7 @@ public class NBTDataParser {
                 return "data remove " + selector + " " + path;
             }
             if ("insert".equals(methodLabel)) {
-                method = "insert " + tokens.next(TokenType.INT,"insertion index");
+                method = "insert " + tokens.expect(TokenType.INT,"insertion index");
                 tokens.expect(',');
             }
             String source = parser.parseNBTSource();

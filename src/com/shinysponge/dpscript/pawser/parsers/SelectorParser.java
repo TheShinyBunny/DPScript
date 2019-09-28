@@ -1,7 +1,6 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinysponge.dpscript.pawser.*;
-import com.shinysponge.dpscript.tokenizew.Token;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 import com.shinysponge.dpscript.tokenizew.Tokenizer;
@@ -67,7 +66,7 @@ public class SelectorParser {
 
             String criterion = "";
             if (addCriterion && tokens.skip("[")) {
-                criterion = tokens.next(TokenType.IDENTIFIER,"advancement criterion");
+                criterion = tokens.expect(TokenType.IDENTIFIER,"advancement criterion");
                 tokens.expect(']');
             }
             tokens.expect(')');
@@ -98,13 +97,13 @@ public class SelectorParser {
         addSelectorMember((selector, cmds) -> {
             tokens.expect("(");
 
-            String fadeIn = tokens.expect(TokenType.INT,"fade in value").getValue();
+            String fadeIn = tokens.expect(TokenType.INT,"fade in value");
             tokens.expect(",");
 
-            String stay = tokens.expect(TokenType.INT,"stay value").getValue();
+            String stay = tokens.expect(TokenType.INT,"stay value");
 
             tokens.expect(",");
-            String fadeOut = tokens.expect(TokenType.INT,"fade out value").getValue();
+            String fadeOut = tokens.expect(TokenType.INT,"fade out value");
 
             tokens.expect(")");
 
@@ -144,13 +143,13 @@ public class SelectorParser {
         },"enchant","ench");
         addSelectorMember((selector,cmds)->{
             tokens.expect('(');
-            String tag = tokens.next(TokenType.IDENTIFIER,"tag identifier");
+            String tag = tokens.expect(TokenType.IDENTIFIER,"tag identifier");
             tokens.expect(')');
             cmds.accept("tag " + selector + " add " + tag);
         },"tag","addTag");
         addSelectorMember((selector,cmds)->{
             tokens.expect('(');
-            String tag = tokens.next(TokenType.IDENTIFIER,"tag identifier");
+            String tag = tokens.expect(TokenType.IDENTIFIER,"tag identifier");
             tokens.expect(')');
             cmds.accept("tag " + selector + " remove " + tag);
         },"untag","removeTag");
@@ -161,7 +160,7 @@ public class SelectorParser {
                 int amount = 1;
                 method = "add";
                 if (op.equals("+=") || op.equals("-=") || op.equals("=")) {
-                    amount = Integer.parseInt(tokens.next(TokenType.INT,"xp value"));
+                    amount = Integer.parseInt(tokens.expect(TokenType.INT,"xp value"));
                 }
                 if (op.equals("--") || op.equals("-=")) {
                     amount = -amount;
@@ -268,21 +267,21 @@ public class SelectorParser {
             }
             List<String> scores = new ArrayList<>();
             while (!tokens.skip("]")) {
-                String f = tokens.next(TokenType.IDENTIFIER,"selector field");
+                String f = tokens.expect(TokenType.IDENTIFIER,"selector field");
                 switch (f) {
                     case "name":
                         tokens.expect('=');
-                        selector += "name=" + tokens.next(TokenType.STRING,"entity name");
+                        selector += "name=" + tokens.expect(TokenType.STRING,"entity name");
                         break;
                     case "tag":
                         tokens.expect('=');
-                        selector += "tag=" + tokens.next(TokenType.IDENTIFIER,"tag identifier");
+                        selector += "tag=" + tokens.expect(TokenType.IDENTIFIER,"tag identifier");
                         break;
                     case "tags":
                         tokens.expect('=');
                         tokens.expect('(');
                         while (!tokens.skip(")")) {
-                            selector += "tag=" + tokens.next(TokenType.IDENTIFIER,"tag identifier");
+                            selector += "tag=" + tokens.expect(TokenType.IDENTIFIER,"tag identifier");
                             tokens.skip(",");
                         }
                         break;
@@ -298,7 +297,7 @@ public class SelectorParser {
                         default:
                             if (parser.hasObjective(f)) {
                                 String op = tokens.expect(">","<",">=","<=","=","==");
-                                int value = Integer.parseInt(tokens.next(TokenType.INT,"objective value"));
+                                int value = Integer.parseInt(tokens.expect(TokenType.INT,"objective value"));
                                 String range = "0";
                                 switch (op) {
                                     case ">":
@@ -345,7 +344,7 @@ public class SelectorParser {
         List<String> cmds = new ArrayList<>();
         String selector = parseSelector();
         if (tokens.skip(".")) {
-            String field = tokens.next(TokenType.IDENTIFIER,"selector field");
+            String field = tokens.expect(TokenType.IDENTIFIER,"selector field");
             for (SelectorMember m : selectorMembers) {
                 for (String id : m.getIdentifiers()) {
                     if (id.equals(field)) {
@@ -362,7 +361,7 @@ public class SelectorParser {
                 case "container":
                 case "villager":{
                     tokens.expect('[');
-                    int slot = Integer.parseInt(tokens.next(TokenType.INT,"slot index"));
+                    int slot = Integer.parseInt(tokens.expect(TokenType.INT,"slot index"));
                     if (slot < 0 || slot >= Parser.INVENTORY_SIZES.get(field))
                         parser.compilationError(ErrorType.INVALID,"Inventory/Enderchest slot index, it's out of bounds!");
                     tokens.expect(']');
@@ -398,13 +397,13 @@ public class SelectorParser {
                 case "enable": {
                     // Trigger enabling
                     tokens.expect("(");
-                    Token identifier = tokens.expect(TokenType.IDENTIFIER, "Trigger name");
+                    String identifier = tokens.expect(TokenType.IDENTIFIER, "Trigger name");
                     tokens.expect(")");
 
-                    if(parser.hasTrigger(identifier.getValue())) {
-                        cmds.add("scoreboard players enable " + selector + " " + identifier.getValue());
+                    if(parser.hasTrigger(identifier)) {
+                        cmds.add("scoreboard players enable " + selector + " " + identifier);
                     } else {
-                        parser.compilationError(ErrorType.UNKNOWN, "trigger " + identifier.getValue());
+                        parser.compilationError(ErrorType.UNKNOWN, "trigger " + identifier);
                     }
                     break;
                 }
@@ -437,7 +436,7 @@ public class SelectorParser {
     public String parseObjectiveSelector() {
         String selector = parseSelector();
         tokens.expect('.');
-        String obj = tokens.next(TokenType.IDENTIFIER,"objective name");
+        String obj = tokens.expect(TokenType.IDENTIFIER,"objective name");
         if (!parser.hasObjective(obj)) parser.compilationError(ErrorType.UNKNOWN,"objective " + obj);
         return selector + " " + obj;
     }

@@ -46,7 +46,7 @@ public class JsonTextParser {
            return JsonValue.str(ctx.tokens.expect("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white", "reset"));
         });
         put("runs",(ctx)->{
-            return new JsonValue("clickEvent","{\"action\":\"run_command\",\"value\":\"/" + ctx.tokens.next(TokenType.STRING,"command to run") + "\"}");
+            return new JsonValue("clickEvent","{\"action\":\"run_command\",\"value\":\"/" + ctx.tokens.expect(TokenType.STRING,"command to run") + "\"}");
         });
         put("hover",(ctx)->{
             if (ctx.tokens.isNext(TokenType.STRING)) {
@@ -156,7 +156,7 @@ public class JsonTextParser {
         }
 
         public JsonValue nextString(String desc) {
-            return JsonValue.str(tokens.next(TokenType.STRING,desc));
+            return JsonValue.str(tokens.expect(TokenType.STRING,desc));
         }
     }
 

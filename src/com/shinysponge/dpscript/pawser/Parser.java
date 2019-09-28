@@ -147,7 +147,7 @@ public class Parser {
                 parseTick();
                 break;
             case "function": {
-                String name = tokens.next(TokenType.IDENTIFIER,"function name");
+                String name = tokens.expect(TokenType.IDENTIFIER,"function name");
                 if (functions.containsKey(name))
                     compilationError(ErrorType.DUPLICATE,"function " + name);
                 tokens.expect('{');
@@ -163,23 +163,23 @@ public class Parser {
                 bossbars.add(id);
                 break;
             case "const": {
-                String name = tokens.next(TokenType.IDENTIFIER,"a name for the constant");
+                String name = tokens.expect(TokenType.IDENTIFIER,"a name for the constant");
                 if (consts.containsKey(name))
                     compilationError(ErrorType.DUPLICATE,"constant " + name);
                 tokens.expect('=');
-                int value = Integer.parseInt(tokens.next(TokenType.INT,"an integer"));
+                int value = Integer.parseInt(tokens.expect(TokenType.INT,"an integer"));
                 createConstant(name,value);
                 break;
             }
             case "global": {
-                String name = tokens.next(TokenType.IDENTIFIER,"a name for the global variable");
+                String name = tokens.expect(TokenType.IDENTIFIER,"a name for the global variable");
                 if (globals.contains(name))
                     compilationError(ErrorType.DUPLICATE,"global " + name);
                 createGlobal(name);
                 break;
             }
             case "int": {
-                String name = tokens.next(TokenType.IDENTIFIER,"a variable name");
+                String name = tokens.expect(TokenType.IDENTIFIER,"a variable name");
                 if (hasObjective(name)) {
                     compilationError(ErrorType.DUPLICATE,"variable " + name);
                 }
@@ -188,7 +188,7 @@ public class Parser {
                 break;
             }
             case "trigger": {
-                String name = tokens.next(TokenType.IDENTIFIER,"a variable name");
+                String name = tokens.expect(TokenType.IDENTIFIER,"a variable name");
                 if (hasObjective(name)) {
                     compilationError(ErrorType.DUPLICATE,"variable " + name);
                 }
@@ -243,7 +243,7 @@ public class Parser {
                 list.addAll(parseBlock());
                 break;
             case "print":
-                list.add("say " + tokens.next(TokenType.STRING, "message"));
+                list.add("say " + tokens.expect(TokenType.STRING, "message"));
                 break;
             case "if":
                 list.addAll(parseIf());
@@ -388,7 +388,7 @@ public class Parser {
                         list.add("time set " + tokens.expect("day","night","midnight","noon"));
                     }
                 } else if (tokens.skip("+=")) {
-                    list.add("time add " + tokens.next(TokenType.INT,"an integer indicating the time in ticks to add"));
+                    list.add("time add " + tokens.expect(TokenType.INT,"an integer indicating the time in ticks to add"));
                 } else if (tokens.skip(".")) {
                     list.add("time query " + tokens.expect("day","daytime","gametime"));
                 }
@@ -436,7 +436,7 @@ public class Parser {
     }
 
     private String readBlockCommand(String pos) {
-        String member = tokens.next(TokenType.IDENTIFIER,"a block function (break(), nbt/data, container[])");
+        String member = tokens.expect(TokenType.IDENTIFIER,"a block function (break(), nbt/data, container[])");
         switch (member) {
             case "break":
                 tokens.expect('(');
@@ -451,7 +451,7 @@ public class Parser {
                 return NBTDataParser.parse("block " + pos,this);
             case "container":
                 tokens.expect('[');
-                int slot = Integer.parseInt(tokens.next(TokenType.INT,"a slot index in the container"));
+                int slot = Integer.parseInt(tokens.expect(TokenType.INT,"a slot index in the container"));
                 tokens.expect(']');
                 tokens.expect('=');
                 String item = parseItemAndCount();
@@ -473,7 +473,7 @@ public class Parser {
             source = "block " + readPosition();
         }
         tokens.expect('[');
-        String path = tokens.next(TokenType.STRING,"NBT path");
+        String path = tokens.expect(TokenType.STRING,"NBT path");
         tokens.expect(']');
         return "from " + source + " " + path;
     }
@@ -494,7 +494,7 @@ public class Parser {
 
     private String parseBossbarCommand(String bossbar) {
         tokens.expect('.');
-        String field = tokens.next(TokenType.IDENTIFIER,"a bossbar field (color,max,name,players,style,value,visible,show/display(),hide(),remove())");
+        String field = tokens.expect(TokenType.IDENTIFIER,"a bossbar field (color,max,name,players,style,value,visible,show/display(),hide(),remove())");
         switch (field) {
             case "color":
                 tokens.expect('=');
@@ -503,7 +503,7 @@ public class Parser {
             case "max":
                 if (tokens.skip("=")) {
                     if (tokens.isNext(TokenType.INT)) {
-                        int max = Integer.parseInt(tokens.next(TokenType.INT,"an integer indicating the maximum bossbar value"));
+                        int max = Integer.parseInt(tokens.expect(TokenType.INT,"an integer indicating the maximum bossbar value"));
                         return "bossbar set " + bossbar + " max " + max;
                     } else {
                         return parseExecuteStore("bossbar " + bossbar + " max");
@@ -530,7 +530,7 @@ public class Parser {
             case "value":
                 if (tokens.skip("=")) {
                     if (tokens.isNext(TokenType.INT)) {
-                        int value = Integer.parseInt(tokens.next(TokenType.INT,"an integer indicating the value of the bossbar"));
+                        int value = Integer.parseInt(tokens.expect(TokenType.INT,"an integer indicating the value of the bossbar"));
                         return "bossbar set " + bossbar + " value " + value;
                     } else {
                         return parseExecuteStore("bossbar " + bossbar + " value");
@@ -585,7 +585,7 @@ public class Parser {
      */
     public static String parseIdentifierOrIndex(TokenIterator tokens, String name, String... values) {
         if (tokens.isNext(TokenType.INT)) {
-            int index = Integer.parseInt(tokens.next(TokenType.INT,null));
+            int index = Integer.parseInt(tokens.expect(TokenType.INT,null));
             if (index < 0 || index > values.length) {
                 tokens.error(ErrorType.INVALID,"gamemode index, must be between 0-3");
             }
@@ -624,7 +624,7 @@ public class Parser {
         if (taggable && tokens.skip("#")) {
             loc += "#";
         }
-        loc += tokens.next(TokenType.IDENTIFIER,"resource location ID");
+        loc += tokens.expect(TokenType.IDENTIFIER,"resource location ID");
         boolean checkPath = false;
         if (tokens.skip(":")) {
             loc += ":";
@@ -635,7 +635,7 @@ public class Parser {
                 loc += "/";
             }
             while (true) {
-                loc += tokens.next(TokenType.IDENTIFIER,"resource location path node");
+                loc += tokens.expect(TokenType.IDENTIFIER,"resource location path node");
                 if (tokens.skip("/")) {
                     loc += "/";
                 } else {
@@ -647,7 +647,7 @@ public class Parser {
     }
 
     public int readOptionalInt() {
-        if (tokens.isNext(TokenType.INT)) return Integer.parseInt(tokens.next(TokenType.INT,null));
+        if (tokens.isNext(TokenType.INT)) return Integer.parseInt(tokens.expect(TokenType.INT,null));
         return 1;
     }
 
@@ -661,10 +661,10 @@ public class Parser {
 
     public Duration parseDuration() {
         Duration d = Duration.ofNanos(0);
-        int n = Integer.parseInt(tokens.next(TokenType.INT,"duration value"));
+        int n = Integer.parseInt(tokens.expect(TokenType.INT,"duration value"));
         if (tokens.isNext(TokenType.IDENTIFIER)) {
             while (true) {
-                String unit = tokens.next(TokenType.IDENTIFIER,"duration unit");
+                String unit = tokens.expect(TokenType.IDENTIFIER,"duration unit");
                 switch (unit) {
                     case "s":
                     case "seconds":
@@ -694,7 +694,7 @@ public class Parser {
                             compilationError(ErrorType.INVALID,"duration unit, expected one of (s/seconds/secs, t/ticks, m/mins/minutes, h/hrs/hours, d/days)");
                 }
                 if (tokens.isNext(TokenType.INT)) {
-                    n = Integer.parseInt(tokens.next(TokenType.INT,"duration value"));
+                    n = Integer.parseInt(tokens.expect(TokenType.INT,"duration value"));
                 } else {
                     break;
                 }
@@ -811,7 +811,7 @@ public class Parser {
         tokens.expect('{');
         String nbt = "{";
         while (!tokens.isNext("}")) {
-            nbt += tokens.next(TokenType.IDENTIFIER,"NBT key");
+            nbt += tokens.expect(TokenType.IDENTIFIER,"NBT key");
             tokens.expect(':');
             nbt += ":";
             nbt += parseNBTValue(tokens);
@@ -870,7 +870,7 @@ public class Parser {
     private String parseState() {
         String state = "[";
         while (!tokens.isNext("]")) {
-            state += tokens.next(TokenType.IDENTIFIER,"state property");
+            state += tokens.expect(TokenType.IDENTIFIER,"state property");
             tokens.expect('=');
             state += "=" + tokens.nextValue();
             if (tokens.isNext(",")) state += ",";
@@ -983,7 +983,7 @@ public class Parser {
                     return chainConditions(new EntityExistsCondition(selector,false));
                 }
                 if (tokens.skip(".")) {
-                    String obj = tokens.next(TokenType.IDENTIFIER,"selector objective");
+                    String obj = tokens.expect(TokenType.IDENTIFIER,"selector objective");
                     if (!hasObjective(obj)) {
                         tokens.pushBack();
                         compilationError(ErrorType.UNKNOWN,"objective for entity selector");
@@ -1036,7 +1036,7 @@ public class Parser {
                     } else {
                         if (tokens.skip("has")) {
                             tokens.expect('(');
-                            String path = tokens.next(TokenType.STRING,"block NBT data path");
+                            String path = tokens.expect(TokenType.STRING,"block NBT data path");
                             tokens.expect(')');
                             return chainConditions(new HasDataCondition("block",pos,path,false));
                         }

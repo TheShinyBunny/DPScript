@@ -2,7 +2,7 @@ package com.shinysponge.dpscript.tokenizew;
 
 public class Token {
 
-    public static final Token EOD = new Token(CodePos.END, TokenType.LINE_END, "end of file");
+    public static final Token EOF = new Token(CodePos.END, TokenType.LINE_END, "end of file");
     private CodePos pos;
     private TokenType type;
     private final String value;

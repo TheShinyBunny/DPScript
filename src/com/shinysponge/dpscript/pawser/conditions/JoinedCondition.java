@@ -17,7 +17,6 @@ public class JoinedCondition extends Condition {
         this.op = op;
         this.left = left;
         this.right = right;
-        System.out.println("left=" + left + ", right=" + right);
     }
 
     @Override
