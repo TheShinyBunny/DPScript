@@ -1,6 +1,7 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinysponge.dpscript.pawser.*;
+import com.shinysponge.dpscript.tokenizew.Token;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 import com.shinysponge.dpscript.tokenizew.Tokenizer;
@@ -234,7 +235,7 @@ public class SelectorParser {
      * @return A vanilla selector string
      */
     public static String parseStringSelector(Parser p, String selector) {
-        TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(p.file,selector),p::compilationError);
+        TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(p.getContext().getFile(),selector),p::compilationError);
         return parseSelectorFrom(p,tokens);
     }
 
@@ -344,6 +345,7 @@ public class SelectorParser {
         List<String> cmds = new ArrayList<>();
         String selector = parseSelector();
         if (tokens.skip(".")) {
+            Token token = tokens.peek();
             String field = tokens.expect(TokenType.IDENTIFIER,"selector field");
             for (SelectorMember m : selectorMembers) {
                 for (String id : m.getIdentifiers()) {
@@ -408,16 +410,10 @@ public class SelectorParser {
                     break;
                 }
                 default:
-                    if (tokens.peek().getValue().equals("(")) {
-                        if (parser.findFunction(field)) {
-                            tokens.next();
-                            tokens.expect(')');
-                            cmds.add("execute as " + selector + " at @s run function " + field);
-                            return cmds;
-                        } else {
-                            parser.compilationError(ErrorType.UNKNOWN,"function " + field + "()");
-                            return cmds;
-                        }
+                    if (tokens.skip("(")) {
+                        tokens.expect(')');
+                        cmds.add("execute as " + selector + " at @s run " + parser.getContext().callFunction(token.getPos(),field));
+                        return cmds;
                     }
                     if (parser.hasObjective(field)) {
                         cmds.addAll(parseScoreOperators(selector + " " + field));

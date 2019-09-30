@@ -1,15 +1,15 @@
 package com.shinysponge.dpscript.tokenizew;
 
-import java.io.File;
+import com.shinysponge.dpscript.project.DPScript;
 
 public class CodePos {
 
     public static final CodePos END = new CodePos(null,-1,-1);
-    private File file;
+    private DPScript file;
     private int line;
     private int column;
 
-    public CodePos(File file, int line, int column) {
+    public CodePos(DPScript file, int line, int column) {
         this.file = file;
         this.line = line;
         this.column = column;
@@ -19,7 +19,7 @@ public class CodePos {
         return line;
     }
 
-    public File getFile() {
+    public DPScript getFile() {
         return file;
     }
 

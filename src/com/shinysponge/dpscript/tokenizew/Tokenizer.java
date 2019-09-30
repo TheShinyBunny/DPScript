@@ -1,5 +1,7 @@
 package com.shinysponge.dpscript.tokenizew;
 
+import com.shinysponge.dpscript.project.DPScript;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,7 +16,7 @@ public class Tokenizer {
     public static final String[] OPERATORS = new String[]{"+", "-", "++", "--", "*", "/", "%", "<", ">", ">=", "<=", "==", "><", "!=", "!", "&&", "||","+=","-="}; // , "&", "|", "^", "~"
 
 
-    public static List<Token> tokenize(File file, String str) {
+    public static List<Token> tokenize(DPScript file, String str) {
         List<Token> tokens = new ArrayList<>();
         int pos = 0;
         int column = 0;
