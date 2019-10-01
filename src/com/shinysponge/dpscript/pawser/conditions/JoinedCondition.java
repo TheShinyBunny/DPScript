@@ -20,24 +20,24 @@ public class JoinedCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String command) {
+    public List<String> toCommands(String command) {
         if (negate) left.negate();
         if (negate) right.negate();
         if (op.equals("||")) {
-            List<String> tempCmds = left.toCommands(parser, command);
+            List<String> tempCmds = left.toCommands(command);
             if (!(left instanceof JoinedCondition))
                 tempCmds = tempCmds.stream().map(s->s + " run " + command).collect(Collectors.toList());
             List<String> cmds = new ArrayList<>(tempCmds);
-            tempCmds = right.toCommands(parser, command);
+            tempCmds = right.toCommands(command);
             if (!(right instanceof JoinedCondition))
                 tempCmds = tempCmds.stream().map(s->s + " run " + command).collect(Collectors.toList());
             cmds.addAll(tempCmds);
             return cmds;
         } else {
-            List<String> leftCmds = left.toCommands(parser, command);
-            List<String> rightCmds = right.toCommands(parser, command);
+            List<String> leftCmds = left.toCommands(command);
+            List<String> rightCmds = right.toCommands(command);
             if (rightCmds.size() > 1) {
-                String name = parser.generateFunction(rightCmds.stream().map(s->"execute " + s).collect(Collectors.toList()));
+                String name = Parser.generateFunction(rightCmds.stream().map(s->"execute " + s).collect(Collectors.toList()));
                 leftCmds = leftCmds.stream().map(s -> s + " run function " + name).collect(Collectors.toList());
             } else {
                 leftCmds = leftCmds.stream().map(s -> s + " " + rightCmds.get(0) + " run " + command).collect(Collectors.toList());

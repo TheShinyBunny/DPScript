@@ -20,8 +20,8 @@ public class ScoreCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String command) {
-        if (first.isLiteral() && second.isLiteral()) parser.compilationError(null,"Cannot compare two literal values!");
+    public List<String> toCommands(String command) {
+        if (first.isLiteral() && second.isLiteral()) Parser.compilationError(null,"Cannot compare two literal values!");
         if (first.isLiteral()) {
             return Collections.singletonList(negation() + " score " + second + " matches " + first.toRange(op));
         } else if (second.isLiteral()){

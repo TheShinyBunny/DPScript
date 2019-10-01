@@ -1,32 +1,38 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
+import com.shinysponge.dpscript.entities.Key;
+import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 
 public class EffectParser {
 
-    public static Effect parseEffect(Parser parser) {
-        String effect = parser.parseResourceLocation(false);
+    public static Effect parseEffect() {
+        String effect = Parser.parseResourceLocation(false);
         int tier = -1;
-        if (parser.tokens.isNext(TokenType.IDENTIFIER)) {
-            tier = parser.readRomanNumber(parser.tokens.nextValue()) - 1;
-        } else if (parser.tokens.isNext(TokenType.INT)) {
-            tier = Integer.parseInt(parser.tokens.nextValue());
+        if (Parser.tokens.isNext(TokenType.IDENTIFIER)) {
+            tier = Parser.readRomanNumber(Parser.tokens.nextValue()) - 1;
+        } else if (Parser.tokens.isNext(TokenType.INT)) {
+            tier = Integer.parseInt(Parser.tokens.nextValue());
         }
         long seconds = -1;
-        if (parser.tokens.skip(",")) {
-            seconds = parser.parseDuration().getSeconds();
+        if (Parser.tokens.skip(",")) {
+            seconds = Parser.parseDuration().getSeconds();
         }
-        parser.tokens.skip(",");
-        boolean hide = parser.tokens.skip("hide");
+        Parser.tokens.skip(",");
+        boolean hide = Parser.tokens.skip("hide");
         return new Effect(effect,tier,seconds,hide);
     }
 
     public static class Effect {
 
+        @Key("Id")
         public final String id;
+        @Key("Amplifier")
         public int tier;
+        @Key("Duration")
         public long seconds;
+
         public boolean hide;
 
         public Effect(String id, int tier, long seconds, boolean hide) {
@@ -48,6 +54,10 @@ public class EffectParser {
         @Override
         public String toString() {
             return id + " " + seconds + " " + tier + " " + hide;
+        }
+
+        public NBT toNBT() {
+            return new NBT(this).set("ShowParticles",!hide);
         }
     }
 

@@ -1,7 +1,5 @@
 package com.shinysponge.dpscript.pawser.conditions;
 
-import com.shinysponge.dpscript.pawser.Parser;
-
 import java.util.Collections;
 import java.util.List;
 
@@ -17,7 +15,7 @@ public class BlockCondition extends Condition {
     }
 
     @Override
-    public List<String> toCommands(Parser parser, String command) {
+    public List<String> toCommands(String command) {
         return Collections.singletonList(negation() + " block " + pos + " " + block);
     }
 }

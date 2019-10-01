@@ -7,10 +7,10 @@ import com.shinysponge.dpscript.tokenizew.TokenType;
 
 public class NBTDataParser {
 
-    public static String parse(String selector, Parser parser) {
-        TokenIterator tokens = parser.tokens;
+    public static String parse(String selector) {
+        TokenIterator tokens = Parser.tokens;
         if (tokens.skip("=")) {
-            String nbt = parser.parseNBT();
+            String nbt = Parser.parseNBT();
             return "data merge " + selector + " " + nbt;
         }
         tokens.expect('[');
@@ -20,7 +20,7 @@ public class NBTDataParser {
             if (tokens.isNext("byte","short","int","long","float","double")) {
                 String type = tokens.expect(TokenType.IDENTIFIER,null);
                 tokens.expect('(');
-                String cmd = parser.readExecuteRunCommand();
+                String cmd = Parser.readExecuteRunCommand();
                 tokens.expect(')');
                 String result = "result";
                 if (tokens.skip(".")) {
@@ -32,7 +32,7 @@ public class NBTDataParser {
                 }
                 return "execute store " + result + " " + selector + " " + path + " " + type + " " + scale + " " + cmd;
             } else {
-                String source = parser.parseNBTSource();
+                String source = Parser.parseNBTSource();
                 return "data modify " + selector + " " + path + " set " + source;
             }
         } else if (tokens.skip(".")) {
@@ -47,7 +47,7 @@ public class NBTDataParser {
                 method = "insert " + tokens.expect(TokenType.INT,"insertion index");
                 tokens.expect(',');
             }
-            String source = parser.parseNBTSource();
+            String source = Parser.parseNBTSource();
             tokens.expect(')');
             switch (methodLabel) {
                 case "push":
@@ -63,7 +63,7 @@ public class NBTDataParser {
                     method = "prepend";
                     break;
                     default:
-                        parser.compilationError(ErrorType.UNKNOWN,"NBT data method " + method);
+                        Parser.compilationError(ErrorType.UNKNOWN,"NBT data method " + method);
             }
             return "data modify " + selector + " " + path + " " + method + " " + source;
         } else {

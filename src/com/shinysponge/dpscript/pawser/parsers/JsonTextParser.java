@@ -37,10 +37,10 @@ public class JsonTextParser {
         put("text",(ctx)->ctx.nextString("plain text"));
         put("selector",(ctx)-> {
             if (ctx.tokens.isNext(TokenType.STRING)) {
-                return JsonValue.str(SelectorParser.parseStringSelector(ctx.parser,ctx.tokens.nextValue()));
+                return JsonValue.str(SelectorParser.parseStringSelector(ctx.tokens.nextValue()));
             }
             ctx.tokens.expect('@');
-            return JsonValue.str(ctx.parser.selectors.parseSelector());
+            return JsonValue.str(SelectorParser.parseSelector());
         });
         put("color",(ctx)->{
            return JsonValue.str(ctx.tokens.expect("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white", "reset"));
@@ -71,8 +71,8 @@ public class JsonTextParser {
     }};
 
 
-    public static String readTextComponent(Parser parser) {
-        return readJson(new Context(parser,new HashMap<>(),propertyMap)).toString();
+    public static String readTextComponent() {
+        return readJson(new Context(new HashMap<>(),propertyMap)).toString();
     }
 
     public static JsonValue readJson(Context ctx) {
@@ -127,28 +127,26 @@ public class JsonTextParser {
     }
 
     public static class Context {
-        public final Parser parser;
         public final Map<String,JsonValue> parent;
         public final Map<String,JsonProperty> props;
         public final TokenIterator tokens;
 
-        public Context(Parser parser, Map<String, JsonValue> parent, Map<String, JsonProperty> props) {
-            this.parser = parser;
+        public Context(Map<String, JsonValue> parent, Map<String, JsonProperty> props) {
             this.parent = parent;
-            this.tokens = parser.tokens;
+            this.tokens = Parser.tokens;
             this.props = props;
         }
 
         public void compilationError(ErrorType type, String msg) {
-            parser.compilationError(type, msg);
+            Parser.compilationError(type, msg);
         }
 
         public Context withProps(Map<String, JsonProperty> props) {
-            return new Context(parser,parent,props);
+            return new Context(parent,props);
         }
 
         public Context withParent(Map<String, JsonValue> parent) {
-            return new Context(parser,parent,props);
+            return new Context(parent,props);
         }
 
         public JsonValue nextBoolean() {

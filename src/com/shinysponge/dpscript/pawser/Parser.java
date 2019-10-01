@@ -24,12 +24,6 @@ public class Parser {
 
     private static Condition lastIf;
 
-
-    public Parser(CompilationContext ctx) {
-
-    }
-
-
     public static void parse(CompilationContext ctx) {
         Parser.ctx = ctx;
         Parser.originalCode = ctx.getFile().getCode();
@@ -110,7 +104,7 @@ public class Parser {
             }
             case "bossbar":
                 String id = parseResourceLocation(false);
-                String displayName = JsonTextParser.readTextComponent(this);
+                String displayName = JsonTextParser.readTextComponent();
                 ctx.addLoad("bossbar add " + id + " " + displayName);
                 ctx.bossbars.add(id);
                 break;
@@ -262,14 +256,14 @@ public class Parser {
                 break;
             case "for": {
                 tokens.expect("@");
-                String selector = selectors.parseSelector();
+                String selector = SelectorParser.parseSelector();
                 list.add("execute as " + selector + " at @s run " + readExecuteRunCommand());
                 break;
             }
             case "as":
             case "at": {
                 tokens.expect('@');
-                String selector = selectors.parseSelector();
+                String selector = SelectorParser.parseSelector();
                 list.add(chainExecute(token + " " + selector));
                 break;
             }
@@ -277,7 +271,7 @@ public class Parser {
             case "face": {
                 String args;
                 if (tokens.skip("@")) {
-                    String selector = selectors.parseSelector();
+                    String selector = SelectorParser.parseSelector();
                     tokens.expect('.');
                     String anchor = tokens.expect("feet","eyes");
                     args = "entity " + selector + " " + anchor;
@@ -295,7 +289,7 @@ public class Parser {
             case "positioned": {
                 String args;
                 if (tokens.skip("@")) {
-                    args = "as " + selectors.parseSelector();
+                    args = "as " + SelectorParser.parseSelector();
                 } else {
                     args = readPosition();
                 }
@@ -306,7 +300,7 @@ public class Parser {
             case "rotated": {
                 String args;
                 if (tokens.skip("@")) {
-                    args = "as " + selectors.parseSelector();
+                    args = "as " + SelectorParser.parseSelector();
                 } else {
                     args = readRotation();
                 }
@@ -373,7 +367,7 @@ public class Parser {
                 if (tokens.skipAll("(",")")) {
                     list.add(ctx.callFunction(token.getPos(),value));
                 } else if (ctx.hasGlobal(value)) {
-                    list.addAll(selectors.parseScoreOperators(getVariableAccess(value)));
+                    list.addAll(SelectorParser.parseScoreOperators(getVariableAccess(value)));
                 } else if (ctx.bossbars.contains(value)) {
                     list.add(parseBossbarCommand(value));
                 } else {
@@ -397,7 +391,7 @@ public class Parser {
                 return "setblock " + pos + " air " + mode;
             case "nbt":
             case "data":
-                return NBTDataParser.parse("block " + pos,this);
+                return NBTDataParser.parse("block " + pos);
             case "container":
                 tokens.expect('[');
                 int slot = Integer.parseInt(tokens.expect(TokenType.INT,"a slot index in the container"));
@@ -417,7 +411,7 @@ public class Parser {
         }
         String source;
         if (tokens.skip("@")) {
-            source = "entity " + selectors.parseSelector();
+            source = "entity " + SelectorParser.parseSelector();
         } else {
             source = "block " + readPosition();
         }
@@ -462,12 +456,12 @@ public class Parser {
                 }
             case "name":
                 tokens.expect('=');
-                String name = JsonTextParser.readTextComponent(this);
+                String name = JsonTextParser.readTextComponent();
                 return "bossbar set " + bossbar + " name " + name;
             case "players":
                 if (tokens.skip("=")) {
                     tokens.expect('@');
-                    String selector = selectors.parseSelector();
+                    String selector = SelectorParser.parseSelector();
                     return "bossbar set " + bossbar + " players " + selector;
                 } else {
                     return "bossbar get "+ bossbar + " players";
@@ -527,7 +521,7 @@ public class Parser {
 
     /**
      * Parses an identifier or an index of the identifier from the specified values. Used currently for gamemodes and difficulties.
-     * @param tokens The TokenIterator to use. Necessary because this is a static method, to allow {@link SelectorParser#parseStringSelector(Parser, String)} to use this method.
+     * @param tokens The TokenIterator to use. Necessary because this is a static method, to allow {@link SelectorParser#parseStringSelector(String)} to use this method.
      * @param name The name of the items. Used to throw an exception.
      * @param values The ids of the values
      * @return The matched identifier
@@ -595,12 +589,12 @@ public class Parser {
         return loc;
     }
 
-    public int readOptionalInt() {
+    public static int readOptionalInt() {
         if (tokens.isNext(TokenType.INT)) return Integer.parseInt(tokens.expect(TokenType.INT,null));
         return 1;
     }
 
-    public String parseItemId(boolean tag) {
+    public static String parseItemId(boolean tag) {
         String id = parseResourceLocation(tag);
         if (tokens.isNext("{")) {
             id += parseNBT();
@@ -608,7 +602,7 @@ public class Parser {
         return id;
     }
 
-    public Duration parseDuration() {
+    public static Duration parseDuration() {
         Duration d = Duration.ofNanos(0);
         int n = Integer.parseInt(tokens.expect(TokenType.INT,"duration value"));
         if (tokens.isNext(TokenType.IDENTIFIER)) {
@@ -664,8 +658,7 @@ public class Parser {
         put('M',1000);
     }};
 
-    public int readRomanNumber(String roman) {
-        System.out.println(roman);
+    public static int readRomanNumber(String roman) {
         int res = 0;
         for (int i = 0; i<roman.length(); i++) {
             int s1 = romanToNumber.get(roman.charAt(i));
@@ -692,18 +685,18 @@ public class Parser {
     /**
      * Reads position coordinates. Joins 3 {@link #readCoordinate()} calls.
      */
-    public String readPosition() {
+    public static String readPosition() {
         return readCoordinates(3);
     }
 
     /**
      * Reads rotation coordinates. Joins 2 {@link #readCoordinate()} calls.
      */
-    private String readRotation() {
+    private static String readRotation() {
         return readCoordinates(2);
     }
 
-    public String readCoordinates(int count) {
+    public static String readCoordinates(int count) {
         String pos = "";
         for (int i = 0; i < count; i++) {
             pos += readCoordinate() + " ";
@@ -715,7 +708,7 @@ public class Parser {
      * Reads a single coordinate (absolute, relative (with ~) or rotated (with ^)
      * @return A valid coordinate string
      */
-    private String readCoordinate() {
+    private static String readCoordinate() {
         if (tokens.skip("~")) {
             if (tokens.isNext(TokenType.DOUBLE,TokenType.INT)) return "~" + tokens.nextValue();
             return "~";
@@ -732,7 +725,7 @@ public class Parser {
      * @param tag Whether or not to read block tags (block ids that start with #)
      * @return A valid block state selector
      */
-    private String parseBlockId(boolean tag) {
+    private static String parseBlockId(boolean tag) {
         String block = parseResourceLocation(tag);
         boolean hadState = false;
         if (tokens.skip("[")) {
@@ -748,22 +741,14 @@ public class Parser {
         return block;
     }
 
-    /**
-     * Parses an NBT object. Expects to have the next token be a curly bracket '{'
-     * @return A validated NBT tag compound
-     */
-    public String parseNBT() {
-        return parseNBT(tokens);
-    }
-
-    public static String parseNBT(TokenIterator tokens) {
+    public static String parseNBT() {
         tokens.expect('{');
         String nbt = "{";
         while (!tokens.isNext("}")) {
             nbt += tokens.expect(TokenType.IDENTIFIER,"NBT key");
             tokens.expect(':');
             nbt += ":";
-            nbt += parseNBTValue(tokens);
+            nbt += parseNBTValue();
             if (tokens.skip(",")) {
                 nbt += ",";
             } else if (!tokens.isNext("}")) {
@@ -779,11 +764,7 @@ public class Parser {
      * Parses an NBT value. This can be any valid NBT value, including string literals, numbers, arrays and NBT objects (using {@link #parseNBT()}).
      * @return A string of the valid minecraft NBT.
      */
-    private String parseNBTValue() {
-        return parseNBTValue(tokens);
-    }
-
-    public static String parseNBTValue(TokenIterator tokens) {
+    public static String parseNBTValue() {
         if (tokens.isNext(TokenType.INT,TokenType.DOUBLE)) {
             String v = tokens.nextValue();
             if (tokens.isNext(TokenType.IDENTIFIER)) {
@@ -797,11 +778,11 @@ public class Parser {
         } else if (tokens.isNext(TokenType.STRING)) {
             return  "\"" + tokens.nextValue() + "\"";
         } else if (tokens.isNext("{")) {
-            return parseNBT(tokens);
+            return parseNBT();
         } else if (tokens.skip("[")) {
             String arr = "[";
             while (!tokens.isNext("]")) {
-                arr += parseNBTValue(tokens);
+                arr += parseNBTValue();
                 if (tokens.skip(",")) {
                     arr += ",";
                 } else if (!tokens.isNext("]")) {
@@ -816,7 +797,7 @@ public class Parser {
         return "{}";
     }
 
-    private String parseState() {
+    private static String parseState() {
         String state = "[";
         while (!tokens.isNext("]")) {
             state += tokens.expect(TokenType.IDENTIFIER,"state property");
@@ -831,7 +812,7 @@ public class Parser {
     }
 
     /**
-     * @deprecated Replaced by {@link JsonTextParser#readTextComponent(Parser)}
+     * @deprecated Replaced by {@link JsonTextParser#readTextComponent()}
      */
     @Deprecated
     public String readJsonText() {
@@ -873,10 +854,10 @@ public class Parser {
         return "";
     }
 
-    private List<String> parseIf() {
+    private static List<String> parseIf() {
         Condition cond = parseCondition(false);
         String command = readExecuteRunCommand();
-        List<String> cmds = cond.toCommandsAll(this, command);
+        List<String> cmds = cond.toCommandsAll(command);
         if (tokens.skip("else")) {
             cmds.addAll(parseElse(cond));
         } else {
@@ -885,27 +866,27 @@ public class Parser {
         return cmds;
     }
 
-    private List<String> parseElse(Condition condition) {
+    private static List<String> parseElse(Condition condition) {
         String command = readExecuteRunCommand();
         condition.negate();
-        return condition.toCommandsAll(this,command);
+        return condition.toCommandsAll(command);
     }
 
-    private List<String> parseWhile() {
+    private static List<String> parseWhile() {
         Condition condition = parseCondition(false);
         List<String> then = parseStatement();
         String func = generateFunction(then);
-        List<String> condCommands = condition.toCommandsAll(this,"function " + func);
+        List<String> condCommands = condition.toCommandsAll("function " + func);
         ctx.getFunction(func).addAll(condCommands);
         return condCommands;
     }
 
     /**
      * Parses a condition tree. Used for <code>execute if...</code>.
-     * @return A {@link Condition} object that holds the information for generating the execute commands, using {@link Condition#toCommands(Parser, String)}.
+     * @return A {@link Condition} object that holds the information for generating the execute commands, using {@link Condition#toCommands(String)}.
      * @param negatable whether this condition should be negatable.
      */
-    private Condition parseCondition(boolean negatable) {
+    private static Condition parseCondition(boolean negatable) {
         Token t = tokens.next();
         switch (t.getValue()) {
             case "!": {
@@ -927,7 +908,7 @@ public class Parser {
                 return chainConditions(c);
             }
             case "@":
-                String selector = selectors.parseSelector();
+                String selector = SelectorParser.parseSelector();
                 if (tokens.skipAll(".","exists","(",")")) {
                     return chainConditions(new EntityExistsCondition(selector,false));
                 }
@@ -1004,7 +985,7 @@ public class Parser {
      * checks if this variable is a const or a local var, and creates a &lt;name&gt; &lt;objective&gt;
      *
      */
-    private String getVariableAccess(String name) {
+    private static String getVariableAccess(String name) {
         if (ctx.hasConstant(name)) {
             return name + " Constants";
         }
@@ -1020,7 +1001,7 @@ public class Parser {
      * @param literal Whether this score is a literal value, aka a constant hardcoded number.
      * @return A {@link ScoreCondition} joined by the next condition.
      */
-    private Condition parseScoreOperators(String first, boolean literal) {
+    private static Condition parseScoreOperators(String first, boolean literal) {
         String op = tokens.peek().getValue();
         boolean negate = false;
         switch (op) {
@@ -1058,7 +1039,7 @@ public class Parser {
                 break;
             default:
                 if (secondTok.getValue().equals("@")) {
-                    second = selectors.parseObjectiveSelector();
+                    second = SelectorParser.parseObjectiveSelector();
                 } else {
                     compilationError(ErrorType.INVALID,"token in condition");
                 }
@@ -1072,7 +1053,7 @@ public class Parser {
      * @param cond The first condition
      * @return A {@link JoinedCondition} of the given condition and the next condition, or just the given condition if no logic gate token is present.
      */
-    private Condition chainConditions(Condition cond) {
+    private static Condition chainConditions(Condition cond) {
         String chain = tokens.peek().getValue();
         switch (chain) {
             case "&&":
@@ -1088,17 +1069,17 @@ public class Parser {
      * @param commands The commands to combine
      * @return The functions name, for using with /function &lt;name&gt;
      */
-    public String generateFunction(List<String> commands) {
+    public static String generateFunction(List<String> commands) {
         String s = ctx.generateFunctionName();
         ctx.addFunction(s,commands);
-        return s;
+        return ctx.getNamespace() + ":" + s;
     }
 
     /**
      * Reads the next statement, and if it contains multiple commands, will combine them into a function command.
      * @return A single command, a normal command or a /function command
      */
-    public String readExecuteRunCommand() {
+    public static String readExecuteRunCommand() {
         List<String> statement = parseStatement();
         if (statement.isEmpty()) {
             compilationError(ErrorType.MISSING,"chained command");
@@ -1110,7 +1091,7 @@ public class Parser {
         return statement.get(0);
     }
 
-    public String parseItemAndCount() {
+    public static String parseItemAndCount() {
         String item = parseItemId(false);
         tokens.skip("*");
         if (tokens.isNext(TokenType.INT)) {
@@ -1119,42 +1100,26 @@ public class Parser {
         return item;
     }
 
-    public boolean hasObjective(String name) {
+    public static boolean hasObjective(String name) {
         return ctx.objectives.contains(name);
     }
 
-    public void createConstant(String name, int value) {
-        ensureConstants();
+    public static void createConstant(String name, int value) {
+        ctx.ensureConstants();
         ctx.consts.put(name,value);
         ctx.addLoad("scoreboard players set " + name + " Constants " + value);
     }
 
-    public void createGlobal(String name) {
-        ensureGlobal();
+    public static void createGlobal(String name) {
+        ctx.ensureGlobal();
         ctx.globals.add(name);
     }
 
-    private boolean createdGlobal;
-
-    private void ensureGlobal() {
-        if (createdGlobal) return;
-        createdGlobal = true;
-        ctx.addLoad("scoreboard objectives add Global dummy");
-    }
-
-    private boolean createdConsts;
-
-    private void ensureConstants() {
-        if (createdConsts) return;
-        createdConsts = true;
-        ctx.addLoad("scoreboard objectives add Constants dummy");
-    }
-
-    public boolean hasTrigger(String name) {
+    public static boolean hasTrigger(String name) {
         return ctx.triggers.contains(name);
     }
 
-    public CompilationContext getContext() {
+    public static CompilationContext getContext() {
         return ctx;
     }
 }

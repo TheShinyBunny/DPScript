@@ -24,6 +24,8 @@ public class CompilationContext {
     private MCFunction tick;
     private Map<String, MCFunction> functions = new HashMap<>();
     public List<GlobalLaterCheck> checks = new ArrayList<>();
+    private boolean createdConsts;
+    private boolean createdGlobal;
 
     public CompilationContext(Datapack project) {
         this.project = project;
@@ -63,7 +65,7 @@ public class CompilationContext {
     }
 
     public MCFunction getFunction(String name) {
-        return this.functions.get(name);
+        return this.functions.get(name.substring(name.indexOf(":")+1));
     }
 
     public void addError(CompilationError err) {
@@ -122,5 +124,23 @@ public class CompilationContext {
                 f.getValue().forEachCommand(System.out::println);
             }
         }
+    }
+
+    public void ensureConstants() {
+        if (!createdConsts) {
+            addLoad("scoreboard objectives add Consts dummy");
+            createdConsts = true;
+        }
+    }
+
+    public void ensureGlobal() {
+        if (!createdGlobal) {
+            addLoad("scoreboard objectives add Global dummy");
+            createdGlobal = true;
+        }
+    }
+
+    public String getNamespace() {
+        return project.getName();
     }
 }

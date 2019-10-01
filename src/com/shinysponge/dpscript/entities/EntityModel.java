@@ -1,11 +1,11 @@
 package com.shinysponge.dpscript.entities;
 
-import java.util.List;
-
-public class Entity<This extends Entity<This>> {
+public class EntityModel {
 
     private String id;
     private String tag;
+    private NBT nbt;
+
 
 
 }
