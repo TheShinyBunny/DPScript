@@ -5,15 +5,10 @@ import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
 import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
 import com.shinysponge.dpscript.project.CompilationContext;
-import com.shinysponge.dpscript.project.DPScript;
 import com.shinysponge.dpscript.tokenizew.*;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * This is the main class to parse the DPScript code.
@@ -21,34 +16,33 @@ import java.util.stream.Collectors;
  */
 public class Parser {
 
-    private final CompilationContext ctx;
-    private ScopeType scope;
-    public TokenIterator tokens;
+    private static CompilationContext ctx;
+    private static ScopeType scope;
+    public static TokenIterator tokens;
 
-    public SelectorParser selectors;
-    private List<String> originalCode;
+    private static List<String> originalCode;
 
-    private Condition lastIf;
+    private static Condition lastIf;
 
 
     public Parser(CompilationContext ctx) {
-        this.ctx = ctx;
-        this.originalCode = ctx.getFile().getCode();
-        this.tokens = new TokenIterator(Tokenizer.tokenize(ctx.getFile(),String.join("\n",originalCode)),this::compilationError);
-        this.scope = ScopeType.GLOBAL;
-        this.selectors = new SelectorParser(this);
+
     }
 
 
     public static void parse(CompilationContext ctx) {
-        new Parser(ctx).parse();
+        Parser.ctx = ctx;
+        Parser.originalCode = ctx.getFile().getCode();
+        Parser.tokens = new TokenIterator(Tokenizer.tokenize(ctx.getFile(),String.join("\n",originalCode)),Parser::compilationError);
+        Parser.scope = ScopeType.GLOBAL;
+        Parser.parse();
     }
 
     /**
      * The root function of pawsing. Loops through the entire code and reads it statement by statement.
      * When it's done, prints out compilation errors if there are any, or otherwise, prints the generated functions.
      */
-    private void parse() {
+    private static void parse() {
         while (tokens.hasNext()) {
             if (tokens.skip(TokenType.LINE_END)) {
                 continue;
@@ -67,7 +61,7 @@ public class Parser {
      * @param type The error type. Used for different error message formats and as the first word in the message itself.
      * @param description A description about the error. For example, when expecting an integer index: ErrorType = {@link ErrorType#EXPECTED}, description = "array index". Will be formatted as "Expected array index, found: Hello"
      */
-    public void compilationError(ErrorType type, String description) {
+    public static void compilationError(ErrorType type, String description) {
         String msg;
         CodePos pos = tokens.peek().getPos();
         if (type == null) {
@@ -87,7 +81,7 @@ public class Parser {
      * Parses a single statement, or a block of statements. Will call either {@link #parseGlobal()} or {@link #parseNormal()} depending on the current {@link #scope ScopeType}.
      * @return The command translated from the statement, or multiple commands if it was a block statement or a conditional statement with || operator/s.
      */
-    public List<String> parseStatement() {
+    public static List<String> parseStatement() {
         List<String> list = new ArrayList<>();
         if (tokens.skip(TokenType.LINE_END)) return list;
         if (scope == ScopeType.GLOBAL) {
@@ -98,7 +92,7 @@ public class Parser {
         return list;
     }
 
-    private void parseGlobal() {
+    private static void parseGlobal() {
         Token t = tokens.next();
         switch (t.getValue()) {
             case "tick":
@@ -162,7 +156,7 @@ public class Parser {
         }
     }
 
-    private void parseTick() {
+    private static void parseTick() {
         tokens.expect('{');
         tokens.nextLine();
         scope = ScopeType.NORMAL;
@@ -171,7 +165,7 @@ public class Parser {
         cmds.forEach(ctx::addTick);
     }
 
-    private List<String> parseBlock() {
+    private static List<String> parseBlock() {
         List<String> list = new ArrayList<>();
         while (tokens.hasNext() && !tokens.isNext("}")) {
             if (tokens.skip(TokenType.LINE_END)) continue;
@@ -182,7 +176,7 @@ public class Parser {
         return list;
     }
 
-    private List<String> parseNormal() {
+    private static List<String> parseNormal() {
         List<String> list = new ArrayList<>();
 
         if(tokens.isNext(TokenType.RAW_COMMAND)) {
@@ -208,7 +202,7 @@ public class Parser {
                 list.addAll(parseIf());
                 break;
             case "@":
-                list.addAll(selectors.parseSelectorCommand());
+                list.addAll(SelectorParser.parseSelectorCommand());
                 break;
             case "clone": {
                 String clone = "clone " + readPosition() + " " + readPosition() + " " + readPosition();
@@ -390,7 +384,7 @@ public class Parser {
         return list;
     }
 
-    private String readBlockCommand(String pos) {
+    private static String readBlockCommand(String pos) {
         String member = tokens.expect(TokenType.IDENTIFIER,"a block function (break(), nbt/data, container[])");
         switch (member) {
             case "break":
@@ -417,7 +411,7 @@ public class Parser {
         return "";
     }
 
-    public String parseNBTSource() {
+    public static String parseNBTSource() {
         if (tokens.isNext("{")) {
             return "value " + parseNBTValue();
         }
@@ -433,7 +427,7 @@ public class Parser {
         return "from " + source + " " + path;
     }
 
-    private String chainExecute(String chain) {
+    private static String chainExecute(String chain) {
         List<String> cmds = parseStatement();
         if (cmds.size() == 1) {
             if (cmds.get(0).startsWith("execute")) {
@@ -447,7 +441,7 @@ public class Parser {
         }
     }
 
-    private String parseBossbarCommand(String bossbar) {
+    private static String parseBossbarCommand(String bossbar) {
         tokens.expect('.');
         String field = tokens.expect(TokenType.IDENTIFIER,"a bossbar field (color,max,name,players,style,value,visible,show/display(),hide(),remove())");
         switch (field) {
@@ -516,7 +510,7 @@ public class Parser {
         return "";
     }
 
-    public String parseExecuteStore(String storeCommand) {
+    public static String parseExecuteStore(String storeCommand) {
         String method = "result";
         String cmd;
         if (tokens.isNext("result","success")) {
@@ -574,7 +568,7 @@ public class Parser {
         put("helmet","head");
     }};
 
-    public String parseResourceLocation(boolean taggable) {
+    public static String parseResourceLocation(boolean taggable) {
         String loc = "";
         if (taggable && tokens.skip("#")) {
             loc += "#";

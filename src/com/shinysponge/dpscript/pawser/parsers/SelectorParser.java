@@ -13,36 +13,21 @@ import java.util.function.Consumer;
 
 public class SelectorParser {
 
-    private Parser parser;
-    private TokenIterator tokens;
+    private static TokenIterator tokens;
 
     private List<SelectorMember> selectorMembers = new ArrayList<>();
 
-    public SelectorParser(Parser parser) {
-        this.parser = parser;
-        this.tokens = parser.tokens;
+    static {
 
         addSelectorMember((selector,cmds)->{
             tokens.expect('(');
-            String effect = parser.parseResourceLocation(false);
-            int tier = -1;
-            if (tokens.isNext(TokenType.IDENTIFIER)) {
-                tier = parser.readRomanNumber(tokens.nextValue()) - 1;
-            } else if (tokens.isNext(TokenType.INT)) {
-                tier = Integer.parseInt(tokens.nextValue());
-            }
-            long seconds = -1;
-            if (tokens.skip(",")) {
-                seconds = parser.parseDuration().getSeconds();
-            }
+            EffectParser.Effect effect = EffectParser.parseEffect(parser);
             tokens.expect(')');
-            boolean hide = tokens.skip("hide");
-            if (!hide && seconds < 0 && tier < 0 && tokens.skip("clear","remove","cure")) {
+            if (effect.isDefault() && tokens.skip("clear","remove","cure")) {
                 cmds.accept("effect clear " + selector + " " + effect);
-            } else if (seconds > 0 || hide || tier >= 0) {
-                if (tier < 0) tier = 0;
-                if (seconds < 0) seconds = 30;
-                cmds.accept("effect give " + selector + " " + effect + " " + seconds + " " + tier + " " + hide);
+            } else if (effect.seconds > 0 || effect.hide || effect.tier >= 0) {
+                effect.defaultDurationAndTier();
+                cmds.accept("effect give " + selector + " " + effect);
             } else {
                 cmds.accept("effect give " + selector + " " + effect);
             }
@@ -63,7 +48,7 @@ public class SelectorParser {
             } else {
                 tokens.skip("only");
             }
-            String adv = parser.parseResourceLocation(false);
+            String adv = Parser.parseResourceLocation(false);
 
             String criterion = "";
             if (addCriterion && tokens.skip("[")) {
@@ -202,7 +187,7 @@ public class SelectorParser {
         },"tellraw","tell");
     }
 
-    private void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {
+    private static void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {
         selectorMembers.add(new SelectorMember() {
             @Override
             public String[] getIdentifiers() {
@@ -239,7 +224,8 @@ public class SelectorParser {
         return parseSelectorFrom(p,tokens);
     }
 
-    public static String parseSelectorFrom(Parser parser, TokenIterator tokens) {
+    public static String parseSelector() {
+        TokenIterator tokens = Parser.tokens;
         String target;
         boolean type = false;
         if (tokens.skip("all","any","e","entity","entities")) {
@@ -341,9 +327,10 @@ public class SelectorParser {
         return selector;
     }
 
-    public List<String> parseSelectorCommand() {
+    public static List<String> parseSelectorCommand() {
         List<String> cmds = new ArrayList<>();
         String selector = parseSelector();
+        TokenIterator tokens = Parser.tokens;
         if (tokens.skip(".")) {
             Token token = tokens.peek();
             String field = tokens.expect(TokenType.IDENTIFIER,"selector field");
@@ -423,10 +410,6 @@ public class SelectorParser {
             }
         }
         return cmds;
-    }
-
-    public String parseSelector() {
-        return parseSelectorFrom(parser,tokens);
     }
 
     public String parseObjectiveSelector() {
