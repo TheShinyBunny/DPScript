@@ -1,6 +1,7 @@
 package com.shinysponge.dpscript.tokenizew;
 
 import com.shinysponge.dpscript.pawser.ErrorType;
+import com.shinysponge.dpscript.pawser.Parser;
 
 import java.util.Iterator;
 import java.util.List;
@@ -28,6 +29,10 @@ public class TokenIterator implements Iterator<Token> {
             }
         }
         System.out.println();
+    }
+
+    public static TokenIterator from(String str) {
+        return new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),str),Parser::compilationError);
     }
 
     /**

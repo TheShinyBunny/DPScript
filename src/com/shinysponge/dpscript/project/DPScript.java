@@ -18,7 +18,7 @@ public class DPScript extends ProjectEntry {
     @Override
     public void compile(CompilationContext ctx) {
         ctx.setFile(this);
-        Parser.parse(ctx);
+        Parser.restart();
     }
 
 

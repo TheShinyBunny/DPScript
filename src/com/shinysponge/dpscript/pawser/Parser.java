@@ -24,10 +24,13 @@ public class Parser {
 
     private static Condition lastIf;
 
-    public static void parse(CompilationContext ctx) {
+    public static void init(CompilationContext ctx) {
         Parser.ctx = ctx;
+    }
+
+    public static void restart() {
         Parser.originalCode = ctx.getFile().getCode();
-        Parser.tokens = new TokenIterator(Tokenizer.tokenize(ctx.getFile(),String.join("\n",originalCode)),Parser::compilationError);
+        Parser.tokens = TokenIterator.from(String.join("\n",originalCode));
         Parser.scope = ScopeType.GLOBAL;
         Parser.parse();
     }
@@ -322,6 +325,10 @@ public class Parser {
                 } else {
                     list.add("difficulty " + parseIdentifierOrIndex(tokens,"difficulty",difficulties));
                 }
+                break;
+            case "gamerule":
+                tokens.skip(".");
+                list.add(GameRules.parseGameruleStatement(tokens));
                 break;
             case "worldspawn":
                 tokens.skip("=");
@@ -809,6 +816,20 @@ public class Parser {
         tokens.skip("]");
         state += "]";
         return state;
+    }
+
+    public static String toCamelCase(String s) {
+        String[] parts = s.split("_");
+        String camelCaseString = "";
+        for (String part : parts){
+            camelCaseString = camelCaseString + toProperCase(part);
+        }
+        return camelCaseString;
+    }
+
+    private static String toProperCase(String s) {
+        return s.substring(0, 1).toUpperCase() +
+                s.substring(1).toLowerCase();
     }
 
     /**

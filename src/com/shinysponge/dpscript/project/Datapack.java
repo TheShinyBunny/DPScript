@@ -1,6 +1,7 @@
 package com.shinysponge.dpscript.project;
 
 import com.shinysponge.dpscript.pawser.CompilationError;
+import com.shinysponge.dpscript.pawser.Parser;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ public class Datapack {
 
     public void compile() {
         CompilationContext ctx = new CompilationContext(this);
+        Parser.init(ctx);
         for (File f : root.listFiles()) {
             ProjectEntry.from(f).compile(ctx);
         }

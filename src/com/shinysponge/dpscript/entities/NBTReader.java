@@ -2,6 +2,8 @@ package com.shinysponge.dpscript.entities;
 
 import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
+import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
+import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 
 import java.util.ArrayList;
@@ -32,4 +34,14 @@ public class NBTReader {
     }
 
 
+    public String readJsonText() {
+        if (Parser.tokens.isNext(TokenType.STRING)) {
+            return JsonTextParser.readTextComponent(Parser.tokens.nextValue());
+        }
+        return JsonTextParser.readTextComponent();
+    }
+
+    public double readDouble() {
+        return Double.parseDouble(Parser.tokens.expect(TokenType.DOUBLE,"double"));
+    }
 }

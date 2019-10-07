@@ -6,8 +6,9 @@ import java.util.Collections;
 import java.util.function.Function;
 
 public enum Entities {
-    LIVING_ENTITY(Tags.ACTIVE_EFFECTS),
-    ARMOR_STAND(LIVING_ENTITY,Tag.bool("Invisible","invisible"),Tag.bool("NoBasePlate","nobase"),Tag.bool("ShowArms","arms"),Tag.bool("Small","small"));
+    ENTITY(Tags.MOTION,Tags.ROTATION,Tag.bool("Invulnerable"),Tag.bool("NoGravity"),Tag.bool("Silent"),Tag.bool("Glowing"),Tag.text("CustomName"),Tag.bool("CustomNameVisible","ShowName","DisplayName")),
+    LIVING_ENTITY(ENTITY,Tags.ACTIVE_EFFECTS),
+    ARMOR_STAND(LIVING_ENTITY,Tag.bool("Invisible"),Tag.bool("NoBasePlate","nobase"),Tag.bool("ShowArms","arms"),Tag.bool("Small"));
 
     Entities(Tag... tags) {
         this(null,tags);
@@ -19,8 +20,12 @@ public enum Entities {
 
     public interface Tag {
 
-        static Tag bool(String realKey, String... aliases) {
-            return new SimpleTag(realKey,aliases, NBTReader::readBoolean);
+        static Tag bool(String key, String... aliases) {
+            return new SimpleTag(key,aliases, NBTReader::readBoolean);
+        }
+
+        static Tag text(String key, String... aliases) {
+            return new SimpleTag(key,aliases, NBTReader::readJsonText);
         }
 
         String getKey();
@@ -41,6 +46,16 @@ public enum Entities {
                 } else {
                     return reader.readNBTList(()->EffectParser.parseEffect().toNBT());
                 }
+            }
+        }, MOTION("Motion") {
+            @Override
+            public Object parse(NBTReader reader, String key) {
+                return reader.readNBTList(reader::readDouble);
+            }
+        }, ROTATION("Rotation", "rot") {
+            @Override
+            public Object parse(NBTReader reader, String key) {
+                return reader.readNBTList(()->Double.valueOf(reader.readDouble()).floatValue());
             }
         };
 

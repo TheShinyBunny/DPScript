@@ -75,6 +75,10 @@ public class JsonTextParser {
         return readJson(new Context(new HashMap<>(),propertyMap)).toString();
     }
 
+    public static String readTextComponent(String str) {
+        return readJson(new Context(TokenIterator.from(str))).toString();
+    }
+
     public static JsonValue readJson(Context ctx) {
         TokenIterator tokens = ctx.tokens;
         if (tokens.isNext(TokenType.STRING)) {
@@ -129,12 +133,17 @@ public class JsonTextParser {
     public static class Context {
         public final Map<String,JsonValue> parent;
         public final Map<String,JsonProperty> props;
-        public final TokenIterator tokens;
+        public TokenIterator tokens;
 
         public Context(Map<String, JsonValue> parent, Map<String, JsonProperty> props) {
             this.parent = parent;
             this.tokens = Parser.tokens;
             this.props = props;
+        }
+
+        public Context(TokenIterator tokens) {
+            this(new HashMap<>(),propertyMap);
+            this.tokens = tokens;
         }
 
         public void compilationError(ErrorType type, String msg) {
