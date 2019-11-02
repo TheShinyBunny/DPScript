@@ -6,7 +6,7 @@ import com.shinysponge.dpscript.tokenizew.TokenType;
 import java.util.function.Function;
 
 public enum GameRules {
-    ANNOUNCE_ADVANCEMENT(true,"advancement_popup","show_advancements"),
+    ANNOUNCE_ADVANCEMENTS(true,"advancement_popup","show_advancements"),
     COMMAND_BLOCK_OUTPUT(true,"commands_messages"),
     DISABLE_ELYTRA_MOVEMENT_CHECK(false,"elytra_check","elytra_anticheat"),
     DISABLE_RAIDS(false,"raids"),
@@ -55,12 +55,12 @@ public enum GameRules {
         String name = tokens.expect(TokenType.IDENTIFIER,"gamerule ID");
         GameRules rule = null;
         for (GameRules gr : values()) {
-            if (gr.name().equalsIgnoreCase(name) || Parser.toCamelCase(gr.name()).equalsIgnoreCase(name)) {
+            if (gr.name().equalsIgnoreCase(name) || Parser.toUpperCaseWords(gr.name()).equalsIgnoreCase(name)) {
                 rule = gr;
                 break;
             }
             for (String a : gr.aliases) {
-                if (a.equalsIgnoreCase(name) || Parser.toCamelCase(gr.name()).equalsIgnoreCase(name)) {
+                if (a.equalsIgnoreCase(name) || Parser.toUpperCaseWords(gr.name()).equalsIgnoreCase(name)) {
                     rule = gr;
                     break;
                 }
@@ -71,7 +71,7 @@ public enum GameRules {
             Parser.compilationError(ErrorType.UNKNOWN,"gamerule ID " + name);
             return "gamerule unknownRule";
         }
-        String camelName = Parser.toCamelCase(rule.name());
+        String camelName = Parser.toUpperCaseWords(rule.name());
         if (tokens.skip("=")) {
             String value = rule.parser.apply(tokens);
             return "gamerule " + camelName + " " + value;

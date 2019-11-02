@@ -15,18 +15,27 @@ public class Tokenizer {
     public static final char[] SYMBOLS = "{}().,;[]=;~^@:#".toCharArray();
     public static final String[] OPERATORS = new String[]{"+", "-", "++", "--", "*", "/", "%", "<", ">", ">=", "<=", "==", "><", "!=", "!", "&&", "||","+=","-="}; // , "&", "|", "^", "~"
 
+    public static List<Token> tokenize(DPScript file, Token token) {
+        CodePos pos = token.getPos();
+        return tokenize(file,token.getValue(),pos.getPos(),pos.getColumn(),pos.getLine());
+    }
+
 
     public static List<Token> tokenize(DPScript file, String str) {
+        return tokenize(file,str,0,0,1);
+    }
+
+    private static List<Token> tokenize(DPScript file, String str, int initialPos, int initialColumn, int initialLine) {
         List<Token> tokens = new ArrayList<>();
-        int pos = 0;
-        int column = 0;
-        int line = 1;
+        int pos = initialPos;
+        int column = initialColumn;
+        int line = initialLine;
         boolean inString = false;
         String temp = "";
         boolean signedNumber = false;
         boolean wasSignedN = false;
         boolean rawCommand = false;
-        CodePos codePos = new CodePos(file,0,0);
+        CodePos codePos = new CodePos(file,pos,line,column);
         while (pos < str.length()) {
             int startPos = pos;
             int startLine = line;
@@ -118,10 +127,13 @@ public class Tokenizer {
             } else {
                 column = 0;
             }
-            codePos = new CodePos(file,line,column);
+            codePos = new CodePos(file,pos,line,column);
         }
         if (rawCommand) {
             tokens.add(new Token(codePos, TokenType.RAW_COMMAND, temp));
+        }
+        if (inString) {
+            tokens.add(new Token(codePos, TokenType.STRING, temp));
         }
         return tokens;
     }

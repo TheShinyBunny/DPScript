@@ -44,3 +44,7 @@ function cancel_sleep {
 function enable_sleep {
 	sleepCooldown = 0
 }
+
+function name() {
+
+}

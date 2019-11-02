@@ -1,12 +1,11 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
+import com.shinybunny.utils.ListUtils;
 import com.shinysponge.dpscript.pawser.*;
-import com.shinysponge.dpscript.tokenizew.Token;
-import com.shinysponge.dpscript.tokenizew.TokenIterator;
-import com.shinysponge.dpscript.tokenizew.TokenType;
-import com.shinysponge.dpscript.tokenizew.Tokenizer;
+import com.shinysponge.dpscript.tokenizew.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -218,7 +217,7 @@ public class SelectorParser {
      * @param selector The selector string
      * @return A vanilla selector string
      */
-    public static String parseStringSelector(String selector) {
+    public static String parseSelector(Token selector) {
         TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),selector),Parser::compilationError);
         return parseSelectorFrom(tokens);
     }
@@ -230,6 +229,7 @@ public class SelectorParser {
     private static String parseSelectorFrom(TokenIterator tokens) {
         String target;
         boolean type = false;
+        tokens.suggestHere(ListUtils.concat(Parser.entityIds, Arrays.asList("a","e","p","s","r")));
         if (tokens.skip("all","any","e","entity","entities")) {
             target = "e";
         } else if (tokens.skip("players","a","everyone","allplayers")) {
@@ -256,6 +256,7 @@ public class SelectorParser {
             }
             List<String> scores = new ArrayList<>();
             while (!tokens.skip("]")) {
+                tokens.suggestHere(Arrays.asList("name","tag","tags","gamemode","nbt"));
                 String f = tokens.expect(TokenType.IDENTIFIER,"selector field");
                 switch (f) {
                     case "name":
@@ -311,12 +312,14 @@ public class SelectorParser {
                                 scores.add(f + "=" + range);
                             } else {
                                 tokens.error(ErrorType.UNKNOWN,"selector field");
+                                break;
                             }
                 }
                 if (tokens.skip(",")) {
                     selector += ",";
                 } else if (!tokens.isNext("]")) {
                     tokens.error(ErrorType.INVALID,"entity selector: expected , or ]");
+                    break;
                 }
             }
             if (!scores.isEmpty()) {

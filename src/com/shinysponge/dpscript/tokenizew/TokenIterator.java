@@ -131,7 +131,6 @@ public class TokenIterator implements Iterator<Token> {
      */
     public String expect(String... s) {
         if (!isNext(s)) {
-            skip();
             error(ErrorType.EXPECTED, s.length == 1 ? s[0] : "one of (" + String.join(",", s) + ")");
         }
         return nextValue();
@@ -221,6 +220,10 @@ public class TokenIterator implements Iterator<Token> {
      */
     public void pushBack() {
         pos--;
+    }
+
+    public void suggestHere(List<String> suggestions) {
+        Parser.getContext().suggest(peek(),suggestions.toArray(new String[0]));
     }
 
     @FunctionalInterface

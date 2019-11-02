@@ -37,13 +37,15 @@ public class JsonTextParser {
         put("text",(ctx)->ctx.nextString("plain text"));
         put("selector",(ctx)-> {
             if (ctx.tokens.isNext(TokenType.STRING)) {
-                return JsonValue.str(SelectorParser.parseStringSelector(ctx.tokens.nextValue()));
+                return JsonValue.str(SelectorParser.parseSelector(ctx.tokens.next()));
             }
             ctx.tokens.expect('@');
             return JsonValue.str(SelectorParser.parseSelector());
         });
+        final String[] colors = new String[]{"black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white", "reset"};
         put("color",(ctx)->{
-           return JsonValue.str(ctx.tokens.expect("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white", "reset"));
+            ctx.tokens.suggestHere(Arrays.asList(colors));
+            return JsonValue.str(ctx.tokens.expect(colors));
         });
         put("runs",(ctx)->{
             return new JsonValue("clickEvent","{\"action\":\"run_command\",\"value\":\"/" + ctx.tokens.expect(TokenType.STRING,"command to run") + "\"}");
@@ -105,6 +107,7 @@ public class JsonTextParser {
                 }
                 if (!tokens.skip(",") && !tokens.isNext("}")) {
                     ctx.compilationError(ErrorType.EXPECTED,"} or , after a JSON property");
+                    break;
                 }
             }
             tokens.skip();
@@ -115,6 +118,7 @@ public class JsonTextParser {
                 values.add(readJson(ctx));
                 if (!tokens.skip(",") && !tokens.isNext("]")) {
                     ctx.compilationError(ErrorType.EXPECTED,"] or , after a JSON array value");
+                    break;
                 }
             }
             tokens.skip();

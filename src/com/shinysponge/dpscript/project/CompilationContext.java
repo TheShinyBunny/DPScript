@@ -3,6 +3,7 @@ package com.shinysponge.dpscript.project;
 import com.shinysponge.dpscript.pawser.CompilationError;
 import com.shinysponge.dpscript.pawser.GlobalLaterCheck;
 import com.shinysponge.dpscript.tokenizew.CodePos;
+import com.shinysponge.dpscript.tokenizew.Token;
 
 import java.util.*;
 
@@ -10,7 +11,6 @@ public class CompilationContext {
 
     private List<Datapack> imports;
     private Datapack project;
-    private Stack<DPFolder> folderStack;
     private DPScript file;
 
     public Map<String, Integer> consts = new HashMap<>();
@@ -24,12 +24,12 @@ public class CompilationContext {
     private MCFunction tick;
     private Map<String, MCFunction> functions = new HashMap<>();
     public List<GlobalLaterCheck> checks = new ArrayList<>();
+    public Map<Token, String[]> suggestions = new HashMap<>();
     private boolean createdConsts;
     private boolean createdGlobal;
 
     public CompilationContext(Datapack project) {
         this.project = project;
-        this.folderStack = new Stack<>();
         this.load = addFunction("init",FunctionType.LOAD);
         this.tick = addFunction("loop",FunctionType.TICK);
     }
@@ -40,12 +40,8 @@ public class CompilationContext {
         return f;
     }
 
-    public void pushDirectory(DPFolder folder) {
-        folderStack.push(folder);
-    }
-
-    public void popDirectory() {
-        folderStack.pop();
+    public void suggest(Token token, String... suggestions) {
+        this.suggestions.put(token,suggestions);
     }
 
     public void setFile(DPScript script) {
@@ -69,6 +65,8 @@ public class CompilationContext {
     }
 
     public void addError(CompilationError err) {
+        System.out.println("added compilation error: ");
+        err.printStackTrace(System.out);
         errors.add(err);
     }
 
@@ -142,5 +140,9 @@ public class CompilationContext {
 
     public String getNamespace() {
         return project.getName();
+    }
+
+    public CompilationResults getResults() {
+        return new CompilationResults(project,errors,functions,suggestions);
     }
 }

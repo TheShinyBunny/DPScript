@@ -1,5 +1,9 @@
 package com.shinysponge.dpscript.tokenizew;
 
+import com.shinybunny.utils.MathUtils;
+
+import java.io.File;
+
 public class Token {
 
     public static final Token EOF = new Token(CodePos.END, TokenType.LINE_END, "end of file");
@@ -28,5 +32,9 @@ public class Token {
     @Override
     public String toString() {
         return "(" + type + ": \"" + value + "\")";
+    }
+
+    public boolean isPositionInside(File file, int pos) {
+        return this.pos.getFile().getFile().sameAs(file) && MathUtils.inRange(pos,this.pos.getPos(),this.pos.getPos() + this.value.length());
     }
 }

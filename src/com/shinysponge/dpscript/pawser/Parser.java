@@ -1,10 +1,12 @@
 package com.shinysponge.dpscript.pawser;
 
+import com.shinybunny.utils.Array;
 import com.shinysponge.dpscript.pawser.conditions.*;
 import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
 import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
 import com.shinysponge.dpscript.project.CompilationContext;
+import com.shinysponge.dpscript.project.DPScript;
 import com.shinysponge.dpscript.tokenizew.*;
 
 import java.time.Duration;
@@ -20,7 +22,7 @@ public class Parser {
     private static ScopeType scope;
     public static TokenIterator tokens;
 
-    private static List<String> originalCode;
+    private static Array<String> originalCode;
 
     private static Condition lastIf;
 
@@ -28,16 +30,17 @@ public class Parser {
         Parser.ctx = ctx;
     }
 
-    public static void restart() {
-        Parser.originalCode = ctx.getFile().getCode();
-        Parser.tokens = TokenIterator.from(String.join("\n",originalCode));
+    public static void parse(DPScript file) {
+        if (ctx == null) return;
+        ctx.setFile(file);
+        Parser.originalCode = file.getCode();
+        Parser.tokens = TokenIterator.from(originalCode.join("\n"));
         Parser.scope = ScopeType.GLOBAL;
         Parser.parse();
     }
 
     /**
      * The root function of pawsing. Loops through the entire code and reads it statement by statement.
-     * When it's done, prints out compilation errors if there are any, or otherwise, prints the generated functions.
      */
     private static void parse() {
         while (tokens.hasNext()) {
@@ -60,18 +63,19 @@ public class Parser {
      */
     public static void compilationError(ErrorType type, String description) {
         String msg;
+        Token token = null;
         CodePos pos = tokens.peek().getPos();
         if (type == null) {
-            msg = "Compilation error at " + pos + ": " + description;
+            msg = description;
         } else if (type == ErrorType.INVALID_STATEMENT) {
-            msg = "Compilation error at " + pos + ": Invalid " + description + " statement";
+            msg = "Invalid " + description + " statement";
         } else if (type != ErrorType.MISSING && type != ErrorType.DUPLICATE && type != ErrorType.UNKNOWN) {
-            Token token = tokens.next();
-            msg = "Compilation error at " + pos + ": " + type.getName() + " " + description + ", found: " + token.getValue();
+            token = tokens.next();
+            msg = type.getName() + " " + description + ", found: " + token.getValue();
         } else {
-            msg = "Compilation error at " + pos + ": " + type.getName() + " " + description;
+            msg = type.getName() + " " + description;
         }
-        ctx.addError(new CompilationError(msg,pos));
+        ctx.addError(new CompilationError(msg,pos,token));
     }
 
     /**
@@ -511,6 +515,13 @@ public class Parser {
         return "";
     }
 
+    /**
+     * Parses a value to be stored in an /execute store command.
+     * If the next token is either <code>result</code> or <code>success</code>, will parse the command inside following parentheses.
+     * Otherwise, will just use the next statement's command.
+     * @param storeCommand The sub-command of execute store. <code>execute store (result|success) [storeCommand] run [chained command]</code>
+     * @return
+     */
     public static String parseExecuteStore(String storeCommand) {
         String method = "result";
         String cmd;
@@ -527,8 +538,8 @@ public class Parser {
     }
 
     /**
-     * Parses an identifier or an index of the identifier from the specified values. Used currently for gamemodes and difficulties.
-     * @param tokens The TokenIterator to use. Necessary because this is a static method, to allow {@link SelectorParser#parseStringSelector(String)} to use this method.
+     * Parses an identifier or an index of the identifier from the specified values. Used currently for gamemode and difficulty IDs.
+     * @param tokens The TokenIterator to use. Necessary because this method is used by {@link SelectorParser#parseSelector(Token)}}.
      * @param name The name of the items. Used to throw an exception.
      * @param values The ids of the values
      * @return The matched identifier
@@ -537,7 +548,7 @@ public class Parser {
         if (tokens.isNext(TokenType.INT)) {
             int index = Integer.parseInt(tokens.expect(TokenType.INT,null));
             if (index < 0 || index > values.length) {
-                tokens.error(ErrorType.INVALID,"gamemode index, must be between 0-3");
+                tokens.error(ErrorType.INVALID,name + " index, must be between 0-3");
             }
             return values[index];
         } else if (tokens.isNext(TokenType.IDENTIFIER)) {
@@ -748,6 +759,10 @@ public class Parser {
         return block;
     }
 
+    /**
+     * Parses an NBT Tag Compound. The next token must be '{'
+     * @return A string representation of the NBT combining the tokens that build up the NBT tag.
+     */
     public static String parseNBT() {
         tokens.expect('{');
         String nbt = "{";
@@ -760,6 +775,7 @@ public class Parser {
                 nbt += ",";
             } else if (!tokens.isNext("}")) {
                 tokens.error(ErrorType.EXPECTED,"} or , after NBT entry");
+                break;
             }
         }
         tokens.skip();
@@ -794,6 +810,7 @@ public class Parser {
                     arr += ",";
                 } else if (!tokens.isNext("]")) {
                     tokens.error(ErrorType.EXPECTED,"] or , after NBT array value");
+                    break;
                 }
             }
             tokens.skip();
@@ -811,20 +828,27 @@ public class Parser {
             tokens.expect('=');
             state += "=" + tokens.nextValue();
             if (tokens.isNext(",")) state += ",";
-            if (!tokens.isNext("]",",")) compilationError(ErrorType.INVALID,"block state, expected ] or ,");
+            if (!tokens.isNext("]",",")) {
+                compilationError(ErrorType.INVALID,"block state, expected ] or ,");
+                break;
+            }
         }
         tokens.skip("]");
         state += "]";
         return state;
     }
 
-    public static String toCamelCase(String s) {
+    /**
+     * Upper cases a string on every underscore (_).
+     * So for example, hello_world would be converted to HelloWorld.
+     */
+    public static String toUpperCaseWords(String s) {
         String[] parts = s.split("_");
-        String camelCaseString = "";
+        String result = "";
         for (String part : parts){
-            camelCaseString = camelCaseString + toProperCase(part);
+            result = result + toProperCase(part);
         }
-        return camelCaseString;
+        return result;
     }
 
     private static String toProperCase(String s) {
@@ -907,7 +931,7 @@ public class Parser {
      * @return A {@link Condition} object that holds the information for generating the execute commands, using {@link Condition#toCommands(String)}.
      * @param negatable whether this condition should be negatable.
      */
-    private static Condition parseCondition(boolean negatable) {
+    public static Condition parseCondition(boolean negatable) {
         Token t = tokens.next();
         switch (t.getValue()) {
             case "!": {
@@ -936,8 +960,7 @@ public class Parser {
                 if (tokens.skip(".")) {
                     String obj = tokens.expect(TokenType.IDENTIFIER,"selector objective");
                     if (!hasObjective(obj)) {
-                        tokens.pushBack();
-                        compilationError(ErrorType.UNKNOWN,"objective for entity selector");
+                        compilationError(ErrorType.UNKNOWN,"objective " + obj + " for entity selector");
                     }
                     return parseScoreOperators(selector + " " + obj,false);
                 }
@@ -955,48 +978,48 @@ public class Parser {
                 return parseScoreOperators(t.getValue(),true);
                 default:
                     String pos;
-                    try {
-                        tokens.pushBack();
+                    tokens.pushBack();
+                    if (tokens.isNext("~","^") || tokens.isNext(TokenType.INT,TokenType.DOUBLE)) {
                         pos = readPosition();
-                    } catch (Exception e) {
+                        if (tokens.skip(",")) {
+                            String end = readPosition();
+                            boolean negate = false;
+                            if (!tokens.skip("=", "==") && tokens.skip("!=")) {
+                                negate = true;
+                            }
+                            String mode = "all";
+                            String dest;
+                            if (tokens.skip("masked", "mask")) {
+                                mode = "masked";
+                                tokens.expect('(');
+                                dest = readPosition();
+                                tokens.expect(')');
+                            } else if (tokens.skip("all")) {
+                                tokens.expect('(');
+                                dest = readPosition();
+                                tokens.expect(')');
+                            } else {
+                                dest = readPosition();
+                            }
+                            return chainConditions(new BlockAreaCondition(pos, end, dest, mode, negate));
+                        } else {
+                            if (tokens.skip("has")) {
+                                tokens.expect('(');
+                                String path = tokens.expect(TokenType.STRING, "block NBT data path");
+                                tokens.expect(')');
+                                return chainConditions(new HasDataCondition("block", pos, path, false));
+                            }
+                            boolean negate = false;
+                            if (!tokens.skip("=", "==") && tokens.skip("!=")) {
+                                negate = true;
+                            }
+                            String block = parseBlockId(true);
+                            return chainConditions(new BlockCondition(pos, block, negate));
+                        }
+                    } else {
                         tokens.pushBack();
                         compilationError(ErrorType.INVALID,"token in condition");
                         return Condition.DUMMY;
-                    }
-                    if (tokens.skip(",")) {
-                        String end = readPosition();
-                        boolean negate = false;
-                        if (!tokens.skip("=","==") && tokens.skip("!=")) {
-                            negate = true;
-                        }
-                        String mode = "all";
-                        String dest;
-                        if (tokens.skip("masked","mask")) {
-                            mode = "masked";
-                            tokens.expect('(');
-                            dest = readPosition();
-                            tokens.expect(')');
-                        } else if (tokens.skip("all")){
-                            tokens.expect('(');
-                            dest = readPosition();
-                            tokens.expect(')');
-                        } else {
-                            dest = readPosition();
-                        }
-                        return chainConditions(new BlockAreaCondition(pos,end,dest,mode,negate));
-                    } else {
-                        if (tokens.skip("has")) {
-                            tokens.expect('(');
-                            String path = tokens.expect(TokenType.STRING,"block NBT data path");
-                            tokens.expect(')');
-                            return chainConditions(new HasDataCondition("block",pos,path,false));
-                        }
-                        boolean negate = false;
-                        if (!tokens.skip("=","==") && tokens.skip("!=")) {
-                            negate = true;
-                        }
-                        String block = parseBlockId(true);
-                        return chainConditions(new BlockCondition(pos, block, negate));
                     }
         }
     }
@@ -1097,8 +1120,8 @@ public class Parser {
     }
 
     /**
-     * Reads the next statement, and if it contains multiple commands, will combine them into a function command.
-     * @return A single command, a normal command or a /function command
+     * Reads the next statement, and if it is a block statement, will combine them into a function command.
+     * @return A single command or a /function command referring to multiple commands
      */
     public static String readExecuteRunCommand() {
         List<String> statement = parseStatement();

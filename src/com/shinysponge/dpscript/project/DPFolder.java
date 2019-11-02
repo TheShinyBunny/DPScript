@@ -1,18 +1,17 @@
 package com.shinysponge.dpscript.project;
 
-import java.io.File;
+import com.shinybunny.utils.fs.AbstractFile;
+import com.shinybunny.utils.fs.Folder;
 
 public class DPFolder extends ProjectEntry {
-    public DPFolder(File file) {
+    public DPFolder(Folder file) {
         super(file);
     }
 
     @Override
     public void compile(CompilationContext ctx) {
-        ctx.pushDirectory(this);
-        for (File f : file.listFiles()) {
+        for (AbstractFile f : file.asFolder().children()) {
             ProjectEntry.from(f).compile(ctx);
         }
-        ctx.popDirectory();
     }
 }

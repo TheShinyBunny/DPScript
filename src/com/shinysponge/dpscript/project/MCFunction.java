@@ -1,5 +1,8 @@
 package com.shinysponge.dpscript.project;
 
+import com.shinybunny.utils.fs.File;
+import com.shinybunny.utils.fs.Folder;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -28,5 +31,10 @@ public class MCFunction {
 
     public void forEachCommand(Consumer<String> consumer) {
         commands.forEach(consumer);
+    }
+
+    public void saveIn(Folder folder) {
+        File f = folder.child(name + ".mcfunction");
+        f.setContent(String.join("\n",commands));
     }
 }

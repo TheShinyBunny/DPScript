@@ -4,15 +4,21 @@ import com.shinysponge.dpscript.project.DPScript;
 
 public class CodePos {
 
-    public static final CodePos END = new CodePos(null,-1,-1);
+    public static final CodePos END = new CodePos(null,-1,-1,-1);
     private DPScript file;
+    private int pos;
     private int line;
     private int column;
 
-    public CodePos(DPScript file, int line, int column) {
+    public CodePos(DPScript file, int pos, int line, int column) {
+        this.pos = pos;
         this.file = file;
         this.line = line;
         this.column = column;
+    }
+
+    public int getPos() {
+        return pos;
     }
 
     public int getLine() {

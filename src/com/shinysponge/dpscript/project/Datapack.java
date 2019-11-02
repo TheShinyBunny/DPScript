@@ -1,37 +1,42 @@
 package com.shinysponge.dpscript.project;
 
-import com.shinysponge.dpscript.pawser.CompilationError;
+import com.shinybunny.utils.fs.AbstractFile;
+import com.shinybunny.utils.fs.Folder;
 import com.shinysponge.dpscript.pawser.Parser;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Datapack {
 
-    private final File root;
+    private final Folder root;
     private List<ProjectEntry> components;
 
-    public Datapack(File root) {
+    public Datapack(Folder root) {
         this.root = root;
         this.components = new ArrayList<>();
     }
 
-    public void compile() {
+    public CompilationResults compile() {
         CompilationContext ctx = new CompilationContext(this);
         Parser.init(ctx);
-        for (File f : root.listFiles()) {
+        for (AbstractFile f : root.children()) {
             ProjectEntry.from(f).compile(ctx);
         }
         ctx.runChecks();
         ctx.logResults();
+        return ctx.getResults();
     }
 
     public String getName() {
         return root.getName();
     }
 
-    public static Datapack from(File f) {
+    public static Datapack from(Folder f) {
         return new Datapack(f);
+    }
+
+    public String getDescription() {
+        return "Auto generated Datapack using DPScript";
     }
 }
