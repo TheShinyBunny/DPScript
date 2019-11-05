@@ -8,7 +8,7 @@ import com.shinysponge.dpscript.project.Datapack;
 public class DPScriptMain {
 
     public static void main(String[] args) {
-        compile(Folder.of("oneplayersleep"));//.saveFunctions(Folder.of("output/oneplayersleep"));
+        compile(Folder.of("class_test"));//.saveFunctions(Folder.of("output/oneplayersleep"));
     }
 
     public static CompilationResults compile(Folder src) {

@@ -2,7 +2,7 @@ package com.shinysponge.dpscript.tokenizew;
 
 import com.shinysponge.dpscript.project.DPScript;
 
-public class CodePos {
+public class CodePos implements Comparable<CodePos> {
 
     public static final CodePos END = new CodePos(null,-1,-1,-1);
     private DPScript file;
@@ -36,5 +36,10 @@ public class CodePos {
     @Override
     public String toString() {
         return this == END ? "end" : file.getName() + "(line " + line + ", column " + column + ")";
+    }
+
+    @Override
+    public int compareTo(CodePos o) {
+        return Integer.compare(this.pos,o.pos);
     }
 }

@@ -1,31 +1,45 @@
 package com.shinysponge.dpscript.pawser;
 
 import com.shinybunny.utils.Array;
+import com.shinybunny.utils.MapBuilder;
+import com.shinysponge.dpscript.entities.EntityClass;
+import com.shinysponge.dpscript.entities.NBT;
+import com.shinysponge.dpscript.oop.*;
 import com.shinysponge.dpscript.pawser.conditions.*;
 import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
 import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
+import com.shinysponge.dpscript.pawser.selector.Selector;
+import com.shinysponge.dpscript.pawser.selector.SimpleSelector;
 import com.shinysponge.dpscript.project.CompilationContext;
 import com.shinysponge.dpscript.project.DPScript;
 import com.shinysponge.dpscript.tokenizew.*;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Function;
 
 /**
  * This is the main class to parse the DPScript code.
- * It's very long and complex, but it works wonders.
+ * It's very long and complex, but it works somehow.
  */
 public class Parser {
 
     private static CompilationContext ctx;
-    private static ScopeType scope;
+    /**
+     * The current token iterator of the current parsing file. This is the main way how to read the code.
+     */
     public static TokenIterator tokens;
 
     private static Array<String> originalCode;
 
     private static Condition lastIf;
+    private static LazyValue<?> returnedValue;
+    public static ClassInstance currentInstance;
 
+    /**
+     * Initializes the Parser class with the current parsing context
+     */
     public static void init(CompilationContext ctx) {
         Parser.ctx = ctx;
     }
@@ -35,19 +49,18 @@ public class Parser {
         ctx.setFile(file);
         Parser.originalCode = file.getCode();
         Parser.tokens = TokenIterator.from(originalCode.join("\n"));
-        Parser.scope = ScopeType.GLOBAL;
         Parser.parse();
     }
 
     /**
-     * The root function of pawsing. Loops through the entire code and reads it statement by statement.
+     * The root function of parsing. Loops through the entire code and reads it statement by statement.
      */
     private static void parse() {
         while (tokens.hasNext()) {
             if (tokens.skip(TokenType.LINE_END)) {
                 continue;
             }
-            parseStatement();
+            parseStatement(ScopeType.GLOBAL);
             tokens.nextLine();
         }
     }
@@ -68,7 +81,7 @@ public class Parser {
         if (type == null) {
             msg = description;
         } else if (type == ErrorType.INVALID_STATEMENT) {
-            msg = "Invalid " + description + " statement";
+            msg = "Invalid " + description + " statement, found " + tokens.peek();
         } else if (type != ErrorType.MISSING && type != ErrorType.DUPLICATE && type != ErrorType.UNKNOWN) {
             token = tokens.next();
             msg = type.getName() + " " + description + ", found: " + token.getValue();
@@ -79,20 +92,23 @@ public class Parser {
     }
 
     /**
-     * Parses a single statement, or a block of statements. Will call either {@link #parseGlobal()} or {@link #parseNormal()} depending on the current {@link #scope ScopeType}.
+     * Parses a single statement, or a block of statements. Will call either {@link #parseGlobal()} or {@link #parseNormal(boolean)} depending on the <code>scope</code>.
      * @return The command translated from the statement, or multiple commands if it was a block statement or a conditional statement with || operator/s.
      */
-    public static List<String> parseStatement() {
+    public static List<String> parseStatement(ScopeType scope) {
         List<String> list = new ArrayList<>();
         if (tokens.skip(TokenType.LINE_END)) return list;
         if (scope == ScopeType.GLOBAL) {
             parseGlobal();
         } else {
-            list.addAll(parseNormal());
+            list.addAll(parseNormal(scope == ScopeType.VALUE));
         }
         return list;
     }
 
+    /**
+     * Reads a single statement in the global (root) scope. This includes objective declarations, classes, functions, etc.
+     */
     private static void parseGlobal() {
         Token t = tokens.next();
         switch (t.getValue()) {
@@ -104,9 +120,7 @@ public class Parser {
                 if (ctx.getFunction(name) != null)
                     compilationError(ErrorType.DUPLICATE,"function " + name);
                 tokens.expect('{');
-                scope = ScopeType.NORMAL;
                 ctx.addFunction(name,parseBlock());
-                scope = ScopeType.GLOBAL;
                 break;
             }
             case "bossbar":
@@ -131,7 +145,7 @@ public class Parser {
                 createGlobal(name);
                 break;
             }
-            case "int": {
+            case "objective": {
                 String name = tokens.expect(TokenType.IDENTIFIER,"a variable name");
                 if (hasObjective(name)) {
                     compilationError(ErrorType.DUPLICATE,"variable " + name);
@@ -150,6 +164,13 @@ public class Parser {
                 ctx.triggers.add(name);
                 break;
             }
+            case "class": {
+                DPClass cls = ClassParser.parseClass(tokens);
+                if (cls != null) {
+                    ctx.classes.put(cls.getName(), cls);
+                }
+                break;
+            }
             default:
                 tokens.pushBack();
                 compilationError(ErrorType.INVALID_STATEMENT,"global");
@@ -160,26 +181,37 @@ public class Parser {
     private static void parseTick() {
         tokens.expect('{');
         tokens.nextLine();
-        scope = ScopeType.NORMAL;
         List<String> cmds = parseBlock();
-        scope = ScopeType.GLOBAL;
         cmds.forEach(ctx::addTick);
     }
 
-    private static List<String> parseBlock() {
+    /**
+     * Parses a block of statements. The next token must be a open curly bracket ( { )
+     * @return The list of commands compiled from the normal statements inside that block.
+     */
+    public static List<String> parseBlock() {
         List<String> list = new ArrayList<>();
+        ctx.enterBlock();
         while (tokens.hasNext() && !tokens.isNext("}")) {
             if (tokens.skip(TokenType.LINE_END)) continue;
-            list.addAll(parseStatement());
+            list.addAll(parseStatement(ScopeType.NORMAL));
             tokens.nextLine();
         }
+        ctx.exitBlock();
         tokens.expect("}");
         return list;
     }
 
-    private static List<String> parseNormal() {
+    /**
+     * Parses a normal scope statement. This is mainly the actual minecraft commands.
+     * @param needsValue true if this statement is a value statement, which means it was called from another statement to get a return value.
+     * @return The command/s compiled from the next statement.
+     */
+    private static List<String> parseNormal(boolean needsValue) {
         List<String> list = new ArrayList<>();
-
+        if (needsValue) {
+            returnedValue = null;
+        }
         if(tokens.isNext(TokenType.RAW_COMMAND)) {
             list.add(tokens.nextValue());
             return list;
@@ -203,7 +235,7 @@ public class Parser {
                 list.addAll(parseIf());
                 break;
             case "@":
-                list.addAll(SelectorParser.parseSelectorCommand());
+                list.addAll(SelectorParser.parseSelectorAndCommand());
                 break;
             case "clone": {
                 String clone = "clone " + readPosition() + " " + readPosition() + " " + readPosition();
@@ -254,31 +286,61 @@ public class Parser {
                 list.add(fill);
                 break;
             }
-            case "summon":
-                String entity = parseResourceLocation(false);
-                if (!entityIds.contains(entity.substring(entity.indexOf(':')+1))) {
-                    compilationError(ErrorType.UNKNOWN,"entity ID");
+            case "new":
+            case "summon": {
+                String name = tokens.expect(TokenType.IDENTIFIER, "class name");
+                AbstractClass c = ctx.classes.get(name);
+                String entityId;
+                NBT nbt = null;
+                String pos;
+                Selector selector;
+                if (c instanceof EntityClass) {
+                    EntityClass cls = ((EntityClass) c);
+                    entityId = cls.getType().getId();
+                    ClassInstance instance = cls.parseNewInstanceCreation();
+                    pos = readPosition();
+                    nbt = instance.toNBT();
+                    selector = cls.createSelector(instance);
+                } else {
+                    tokens.pushBack();
+                    entityId = parseResourceLocation(false);
+                    if (!entityIds.contains(entityId.substring(entityId.indexOf(':') + 1))) {
+                        compilationError(ErrorType.UNKNOWN, "entity ID");
+                    }
+                    pos = readPosition();
+                    if (tokens.isNext("{")) {
+                        nbt = NBT.parse();
+                    }
+                    selector = new SimpleSelector('e',MapBuilder.of("type",entityId));
                 }
-                list.add("summon " + entity + " " + readPosition());
+                String addAge = "scoreboard players add @e[type=" + entityId + "] _age 1";
+                if (needsValue) {
+                    ctx.ensureObjective("_age");
+                    list.add(addAge);
+                }
+                list.add("summon " + entityId + " " + pos + (nbt == null ? "" : " " + nbt));
+                if (needsValue) {
+                    list.add(addAge);
+                    returnedValue = LazyValue.literal(selector.toSingle().set("limit","1").set("scores","{_age=1}"));
+                }
                 break;
+            }
             case "for": {
-                tokens.expect("@");
-                String selector = SelectorParser.parseSelector();
+                Selector selector = SelectorParser.parseAnySelector(true);
                 list.add("execute as " + selector + " at @s run " + readExecuteRunCommand());
                 break;
             }
             case "as":
             case "at": {
-                tokens.expect('@');
-                String selector = SelectorParser.parseSelector();
-                list.add(chainExecute(token + " " + selector));
+                Selector selector = SelectorParser.parseAnySelector(true);
+                list.add(chainExecute(value + " " + selector));
                 break;
             }
             case "facing":
             case "face": {
                 String args;
-                if (tokens.skip("@")) {
-                    String selector = SelectorParser.parseSelector();
+                if (tokens.isNext("@")) {
+                    Selector selector = SelectorParser.parseAnySelector(false);
                     tokens.expect('.');
                     String anchor = tokens.expect("feet","eyes");
                     args = "entity " + selector + " " + anchor;
@@ -295,8 +357,8 @@ public class Parser {
             case "offset":
             case "positioned": {
                 String args;
-                if (tokens.skip("@")) {
-                    args = "as " + SelectorParser.parseSelector();
+                if (tokens.isNext("@")) {
+                    args = "as " + SelectorParser.parseAnySelector(false);
                 } else {
                     args = readPosition();
                 }
@@ -306,8 +368,8 @@ public class Parser {
             case "rotate":
             case "rotated": {
                 String args;
-                if (tokens.skip("@")) {
-                    args = "as " + SelectorParser.parseSelector();
+                if (tokens.isNext("@")) {
+                    args = "as " + SelectorParser.parseAnySelector(false);
                 } else {
                     args = readRotation();
                 }
@@ -364,15 +426,21 @@ public class Parser {
                 }
                 list.add("weather " + weather);
                 break;
-            case "block":
+            case "block": {
                 tokens.expect('(');
                 String pos = readPosition();
                 tokens.expect(')');
-                tokens.expect('.');
                 list.add(readBlockCommand(pos));
                 break;
+            }
             case "while":
                 list.addAll(parseWhile());
+                break;
+            case "schedule":
+                tokens.expect('(');
+                String function = ctx.callFunction(token.getPos(),value);
+                Duration duration = parseDuration();
+                list.add("schedule " + function + " " + ((duration.getSeconds() * 20) + (duration.getNano() / 50_000_000)));
                 break;
             default:
                 if (tokens.skipAll("(",")")) {
@@ -381,15 +449,32 @@ public class Parser {
                     list.addAll(SelectorParser.parseScoreOperators(getVariableAccess(value)));
                 } else if (ctx.bossbars.contains(value)) {
                     list.add(parseBossbarCommand(value));
+                } else if (ctx.getVariable(value) != null) {
+                    Object var = ctx.getVariable(value);
+                    if (var instanceof Selector) {
+                        list.addAll(SelectorParser.parseSelectorCommand((Selector)var));
+                    }
+                } else if (tokens.skip("=")) {
+                    list.addAll(parseStatement(ScopeType.VALUE));
+                    ctx.putVariable(value,returnedValue);
+                } else if (needsValue) {
+                    returnedValue = ClassParser.parseExpression(tokens,null);
                 } else {
                     tokens.pushBack();
                     compilationError(ErrorType.INVALID_STATEMENT,"function");
                 }
         }
+        if (needsValue && returnedValue == null) {
+            compilationError(ErrorType.INVALID_STATEMENT,"value");
+        }
         return list;
     }
 
     private static String readBlockCommand(String pos) {
+        if (tokens.skip("=")) {
+            return "setblock " + pos + " " + parseBlockId(false);
+        }
+        tokens.expect('.');
         String member = tokens.expect(TokenType.IDENTIFIER,"a block function (break(), nbt/data, container[])");
         switch (member) {
             case "break":
@@ -408,7 +493,7 @@ public class Parser {
                 int slot = Integer.parseInt(tokens.expect(TokenType.INT,"a slot index in the container"));
                 tokens.expect(']');
                 tokens.expect('=');
-                String item = parseItemAndCount();
+                Item item = parseItemAndCount();
                 return "replaceitem block " + pos + " container." + slot + " " + item;
         }
         tokens.pushBack();
@@ -418,11 +503,11 @@ public class Parser {
 
     public static String parseNBTSource() {
         if (tokens.isNext("{")) {
-            return "value " + parseNBTValue();
+            return "value " + NBT.parseValue();
         }
         String source;
         if (tokens.skip("@")) {
-            source = "entity " + SelectorParser.parseSelector();
+            source = "entity " + SelectorParser.parseAnySelector(false);
         } else {
             source = "block " + readPosition();
         }
@@ -432,8 +517,14 @@ public class Parser {
         return "from " + source + " " + path;
     }
 
+    /**
+     * Reads a statement right after a /execute statement, to concat it with the given chain command.
+     * @param chain The execute sub-command string that was just parsed, to concat to /execute [chain] run [next statement]
+     * @return An execute command according to the next statement. If it was a block, will compile it into a function. Otherwise, will concat the command to the execute.
+     * <br/>Will also omit the 'run execute' if the following command is an execute command too.
+     */
     private static String chainExecute(String chain) {
-        List<String> cmds = parseStatement();
+        List<String> cmds = parseStatement(ScopeType.NORMAL);
         if (cmds.size() == 1) {
             if (cmds.get(0).startsWith("execute")) {
                 return "execute " + chain + cmds.get(0).substring("execute".length());
@@ -472,7 +563,7 @@ public class Parser {
             case "players":
                 if (tokens.skip("=")) {
                     tokens.expect('@');
-                    String selector = SelectorParser.parseSelector();
+                    Selector selector = SelectorParser.parseSelector();
                     return "bossbar set " + bossbar + " players " + selector;
                 } else {
                     return "bossbar get "+ bossbar + " players";
@@ -516,11 +607,10 @@ public class Parser {
     }
 
     /**
-     * Parses a value to be stored in an /execute store command.
+     * Parses a value to be stored in a /execute store command.
      * If the next token is either <code>result</code> or <code>success</code>, will parse the command inside following parentheses.
-     * Otherwise, will just use the next statement's command.
+     * Otherwise, will just use the next statement's result.
      * @param storeCommand The sub-command of execute store. <code>execute store (result|success) [storeCommand] run [chained command]</code>
-     * @return
      */
     public static String parseExecuteStore(String storeCommand) {
         String method = "result";
@@ -612,12 +702,13 @@ public class Parser {
         return 1;
     }
 
-    public static String parseItemId(boolean tag) {
+    public static Item parseItem(boolean tag) {
         String id = parseResourceLocation(tag);
+        NBT nbt = null;
         if (tokens.isNext("{")) {
-            id += parseNBT();
+            nbt = NBT.parse();
         }
-        return id;
+        return new Item(id,nbt,1);
     }
 
     public static Duration parseDuration() {
@@ -751,74 +842,12 @@ public class Parser {
             hadState = true;
         }
         if (tokens.isNext("{")) {
-            block += parseNBT();
+            block += NBT.parse();
         }
         if (!hadState && tokens.skip("[")) {
             block += parseState();
         }
         return block;
-    }
-
-    /**
-     * Parses an NBT Tag Compound. The next token must be '{'
-     * @return A string representation of the NBT combining the tokens that build up the NBT tag.
-     */
-    public static String parseNBT() {
-        tokens.expect('{');
-        String nbt = "{";
-        while (!tokens.isNext("}")) {
-            nbt += tokens.expect(TokenType.IDENTIFIER,"NBT key");
-            tokens.expect(':');
-            nbt += ":";
-            nbt += parseNBTValue();
-            if (tokens.skip(",")) {
-                nbt += ",";
-            } else if (!tokens.isNext("}")) {
-                tokens.error(ErrorType.EXPECTED,"} or , after NBT entry");
-                break;
-            }
-        }
-        tokens.skip();
-        nbt += "}";
-        return nbt;
-    }
-
-    /**
-     * Parses an NBT value. This can be any valid NBT value, including string literals, numbers, arrays and NBT objects (using {@link #parseNBT()}).
-     * @return A string of the valid minecraft NBT.
-     */
-    public static String parseNBTValue() {
-        if (tokens.isNext(TokenType.INT,TokenType.DOUBLE)) {
-            String v = tokens.nextValue();
-            if (tokens.isNext(TokenType.IDENTIFIER)) {
-                if (tokens.isNext("d","D","s","S","F","f","B","b")) {
-                    v += tokens.nextValue();
-                } else {
-                    tokens.error(ErrorType.INVALID,"NBT number suffix");
-                }
-            }
-            return v;
-        } else if (tokens.isNext(TokenType.STRING)) {
-            return  "\"" + tokens.nextValue() + "\"";
-        } else if (tokens.isNext("{")) {
-            return parseNBT();
-        } else if (tokens.skip("[")) {
-            String arr = "[";
-            while (!tokens.isNext("]")) {
-                arr += parseNBTValue();
-                if (tokens.skip(",")) {
-                    arr += ",";
-                } else if (!tokens.isNext("]")) {
-                    tokens.error(ErrorType.EXPECTED,"] or , after NBT array value");
-                    break;
-                }
-            }
-            tokens.skip();
-            arr += "]";
-            return arr;
-        }
-        tokens.error(ErrorType.INVALID,"NBT value");
-        return "{}";
     }
 
     private static String parseState() {
@@ -856,49 +885,6 @@ public class Parser {
                 s.substring(1).toLowerCase();
     }
 
-    /**
-     * @deprecated Replaced by {@link JsonTextParser#readTextComponent()}
-     */
-    @Deprecated
-    public String readJsonText() {
-        if(tokens.isNext(TokenType.STRING) || tokens.isNext("{", "[")) {
-            Token t = tokens.next();
-
-            // Handling single strings
-            if(t.getType() == TokenType.STRING) return "\"" + t.getValue() + "\"";
-
-            // Handling things in brackets
-            String s = t.getValue();
-            String closer = s.equals("{") ? "}" : "]";
-
-            String out = "" + s;
-
-            int bracket = 1;
-            while(bracket > 0) {
-                t = tokens.next();
-                if(t.getValue().equals(s)) {
-                    bracket++;
-                } else if(t.getValue().equals(closer)) {
-                    bracket--;
-                }
-
-                if(t.getType() != TokenType.LINE_END) {
-                    String added = t.getValue();
-                    if(t.getType() == TokenType.STRING) {
-                        added = "\"" + added + "\"";
-                    }
-
-                    out += added;
-                }
-            }
-
-            return out;
-        }
-
-        compilationError(ErrorType.INVALID,"JSON token");
-        return "";
-    }
-
     private static List<String> parseIf() {
         Condition cond = parseCondition(false);
         String command = readExecuteRunCommand();
@@ -919,7 +905,7 @@ public class Parser {
 
     private static List<String> parseWhile() {
         Condition condition = parseCondition(false);
-        List<String> then = parseStatement();
+        List<String> then = parseStatement(ScopeType.NORMAL);
         String func = generateFunction(then);
         List<String> condCommands = condition.toCommandsAll("function " + func);
         ctx.getFunction(func).addAll(condCommands);
@@ -953,7 +939,7 @@ public class Parser {
                 return chainConditions(c);
             }
             case "@":
-                String selector = SelectorParser.parseSelector();
+                Selector selector = SelectorParser.parseSelector();
                 if (tokens.skipAll(".","exists","(",")")) {
                     return chainConditions(new EntityExistsCondition(selector,false));
                 }
@@ -1108,6 +1094,48 @@ public class Parser {
         return cond;
     }
 
+    public static <T> List<T> readList(char open, char close, Function<TokenIterator,T> valueParser) {
+        List<T> list = new ArrayList<>();
+        tokens.expect(open);
+        while (tokens.hasNext() && !tokens.isNext(close + "")) {
+            list.add(valueParser.apply(tokens));
+            if (!tokens.skip(",") && !tokens.isNext(close + "")) {
+                compilationError(ErrorType.EXPECTED,", or " + close + " to end list");
+            }
+        }
+        tokens.expect(close);
+        return list;
+    }
+
+    public static <T> LazyValue<List<T>> readLazyList(char open, char close, Function<TokenIterator,LazyValue<T>> valueParser) {
+        List<LazyValue<T>> list = new ArrayList<>();
+        tokens.expect(open);
+        while (tokens.hasNext() && !tokens.isNext(close + "")) {
+            list.add(valueParser.apply(tokens));
+            if (!tokens.skip(",") && !tokens.isNext(close + "")) {
+                compilationError(ErrorType.EXPECTED,", or " + close + " to end list");
+            }
+        }
+        tokens.expect(close);
+        return LazyValue.of(()->{
+            List<T> actual = new ArrayList<>();
+            for (LazyValue<T> lazy : list) {
+                actual.add(lazy.eval());
+            }
+            return actual;
+        },null);
+    }
+
+
+    public static LazyValue<String> readJsonText() {
+        if (tokens.isNext(TokenType.STRING)) {
+            return LazyValue.of(()->JsonTextParser.readTextComponent(tokens.nextValue()),DPClass.STRING);
+        }
+        return LazyValue.of(JsonTextParser::readTextComponent,DPClass.STRING);
+    }
+
+
+
     /**
      * Generates a new function combining the specified commands.
      * @param commands The commands to combine
@@ -1124,7 +1152,7 @@ public class Parser {
      * @return A single command or a /function command referring to multiple commands
      */
     public static String readExecuteRunCommand() {
-        List<String> statement = parseStatement();
+        List<String> statement = parseStatement(ScopeType.NORMAL);
         if (statement.isEmpty()) {
             compilationError(ErrorType.MISSING,"chained command");
             return "say Empty Statement!";
@@ -1135,11 +1163,11 @@ public class Parser {
         return statement.get(0);
     }
 
-    public static String parseItemAndCount() {
-        String item = parseItemId(false);
+    public static Item parseItemAndCount() {
+        Item item = parseItem(false);
         tokens.skip("*");
         if (tokens.isNext(TokenType.INT)) {
-            return item + " " + tokens.nextValue();
+            return new Item(item.getId(),item.getTag(),Integer.parseInt(tokens.nextValue()));
         }
         return item;
     }
@@ -1166,4 +1194,6 @@ public class Parser {
     public static CompilationContext getContext() {
         return ctx;
     }
+
+
 }

@@ -1,12 +1,13 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinybunny.utils.ListUtils;
+import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.pawser.*;
+import com.shinysponge.dpscript.pawser.selector.Selector;
+import com.shinysponge.dpscript.pawser.selector.SimpleSelector;
 import com.shinysponge.dpscript.tokenizew.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -62,7 +63,7 @@ public class SelectorParser {
             if (tokens.isNext(")")) {
                 cmds.accept("clear " + selector);
             } else {
-                String item = Parser.parseItemAndCount();
+                Item item = Parser.parseItemAndCount();
                 cmds.accept("clear " + selector + " " + item);
             }
         },"clear");
@@ -184,9 +185,23 @@ public class SelectorParser {
             tokens.expect(')');
             cmds.accept("tellraw " + selector + " " + json);
         },"tellraw","tell");
+        addSelectorMember((selector, cmds)->{
+            if (!selector.targetsPlayers()) {
+                Parser.compilationError(null,"selector " + selector + " can target non-players, but give() can only be used on players.");
+            }
+            tokens.expect("(");
+            String src = LootParser.parseLootSource();
+            if (src == null) {
+                Item item = Parser.parseItemAndCount();
+                tokens.expect(")");
+                cmds.accept("give " + selector + " " + item);
+            } else {
+                cmds.accept("loot give " + selector + " " + src);
+            }
+        },"give");
     }
 
-    private static void addSelectorMember(BiConsumer<String, Consumer<String>> parser, String... ids) {
+    private static void addSelectorMember(BiConsumer<Selector, Consumer<String>> parser, String... ids) {
         selectorMembers.add(new SelectorMember() {
             @Override
             public String[] getIdentifiers() {
@@ -194,7 +209,7 @@ public class SelectorParser {
             }
 
             @Override
-            public void parse(String selector, Consumer<String> commands) {
+            public void parse(Selector selector, Consumer<String> commands) {
                 parser.accept(selector,commands);
             }
         });
@@ -203,7 +218,7 @@ public class SelectorParser {
     /**
      * @param type title, subtitle, actionbar
      */
-    private static void doTitle(String selector, Consumer<String> cmds, String type) {
+    private static void doTitle(Selector selector, Consumer<String> cmds, String type) {
         tokens.expect("(");
         String json = JsonTextParser.readTextComponent();
 
@@ -217,43 +232,41 @@ public class SelectorParser {
      * @param selector The selector string
      * @return A vanilla selector string
      */
-    public static String parseSelector(Token selector) {
+    public static Selector parseSelector(Token selector) {
         TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),selector),Parser::compilationError);
         return parseSelectorFrom(tokens);
     }
 
-    public static String parseSelector() {
+    public static Selector parseSelector() {
         return parseSelectorFrom(Parser.tokens);
     }
 
-    private static String parseSelectorFrom(TokenIterator tokens) {
-        String target;
-        boolean type = false;
+    private static Selector parseSelectorFrom(TokenIterator tokens) {
+        char target;
+        String type = null;
         tokens.suggestHere(ListUtils.concat(Parser.entityIds, Arrays.asList("a","e","p","s","r")));
         if (tokens.skip("all","any","e","entity","entities")) {
-            target = "e";
+            target = 'e';
         } else if (tokens.skip("players","a","everyone","allplayers")) {
-            target = "a";
+            target = 'a';
         } else if (tokens.skip("closest","p","nearest","player")) {
-            target = "p";
+            target = 'p';
         } else if (tokens.skip("this","self","s","me")) {
-            target = "s";
+            target = 's';
         } else if (tokens.skip("random","r")) {
-            target = "r";
+            target = 'r';
         } else if (Parser.entityIds.contains(tokens.peek().getValue())) {
-            type = true;
-            target = "e[type=" + tokens.nextValue();
+            target = 'e';
+            type = tokens.nextValue();
         } else {
             tokens.error(ErrorType.INVALID,"target selector");
-            target = "e";
+            target = 'e';
         }
-        String selector = "@" + target;
+        Map<String,String> params = new HashMap<>();
+        if (type != null) {
+            params.put("type",type);
+        }
         if (tokens.skip("[")) {
-            if (type) {
-                selector += ",";
-            } else {
-                selector += "[";
-            }
             List<String> scores = new ArrayList<>();
             while (!tokens.skip("]")) {
                 tokens.suggestHere(Arrays.asList("name","tag","tags","gamemode","nbt"));
@@ -261,28 +274,25 @@ public class SelectorParser {
                 switch (f) {
                     case "name":
                         tokens.expect('=');
-                        selector += "name=" + tokens.expect(TokenType.STRING,"entity name");
+                        params.put("name",tokens.expect(TokenType.STRING,"entity name"));
                         break;
                     case "tag":
                         tokens.expect('=');
-                        selector += "tag=" + tokens.expect(TokenType.IDENTIFIER,"tag identifier");
+                        params.put("tag",tokens.expect(TokenType.IDENTIFIER,"tag identifier"));
                         break;
                     case "tags":
                         tokens.expect('=');
-                        tokens.expect('(');
-                        while (!tokens.skip(")")) {
-                            selector += "tag=" + tokens.expect(TokenType.IDENTIFIER,"tag identifier");
-                            tokens.skip(",");
-                        }
+                        List<String> tags = Parser.readList('(',')',t->tokens.expect(TokenType.IDENTIFIER,"tag identifier"));
+                        params.put("tag",Selector.toMultiParams("tag",tags));
                         break;
                     case "gm":
                     case "gamemode":
                         tokens.expect("=");
-                        selector += "gamemode=" + Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes);
+                        params.put("gamemode", Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes));
                     case "nbt":
                         tokens.expect('=');
                         boolean negate = tokens.skip("!");
-                        selector += "nbt=" + (negate ? "!" : "") + Parser.parseNBT();
+                        params.put("nbt",(negate ? "!" : "") + NBT.parse());
                         break;
                         default:
                             if (Parser.hasObjective(f)) {
@@ -315,26 +325,20 @@ public class SelectorParser {
                                 break;
                             }
                 }
-                if (tokens.skip(",")) {
-                    selector += ",";
-                } else if (!tokens.isNext("]")) {
+                if (!tokens.skip(",") && !tokens.isNext("]")) {
                     tokens.error(ErrorType.INVALID,"entity selector: expected , or ]");
                     break;
                 }
             }
             if (!scores.isEmpty()) {
-                selector += "scores={" + String.join(",",scores) + "}";
+                params.put("scores","{" + String.join(",",scores) + "}");
             }
-            selector += "]";
-        } else if (type){
-            selector += "]";
         }
-        return selector;
+        return new SimpleSelector(target,params);
     }
 
-    public static List<String> parseSelectorCommand() {
+    public static List<String> parseSelectorCommand(Selector selector) {
         List<String> cmds = new ArrayList<>();
-        String selector = parseSelector();
         tokens = Parser.tokens;
         if (tokens.skip(".")) {
             Token token = tokens.peek();
@@ -360,23 +364,23 @@ public class SelectorParser {
                         Parser.compilationError(ErrorType.INVALID,"Inventory/Enderchest slot index, it's out of bounds!");
                     tokens.expect(']');
                     tokens.expect('=');
-                    String item = Parser.parseItemAndCount();
-                    cmds.add("replaceitem entity " + selector + " " + (field + "." + slot) + " " + item + " " + Parser.readOptionalInt());
+                    Item item = Parser.parseItemAndCount();
+                    cmds.add("replaceitem entity " + selector + " " + (field + "." + slot) + " " + item);
                     break;
                 }
                 case "mainhand":
                 case "hand":
                 case "righthand": {
                     tokens.expect('=');
-                    String item = Parser.parseItemAndCount();
-                    cmds.add("replaceitem entity " + selector + " weapon.mainhand " + item + " " + Parser.readOptionalInt());
+                    Item item = Parser.parseItemAndCount();
+                    cmds.add("replaceitem entity " + selector + " weapon.mainhand " + item);
                     break;
                 }
                 case "offhand":
                 case "lefthand": {
                     tokens.expect('=');
-                    String item = Parser.parseItemAndCount();
-                    cmds.add("replaceitem entity " + selector + " weapon.offhand " + item + " " + Parser.readOptionalInt());
+                    Item item = Parser.parseItemAndCount();
+                    cmds.add("replaceitem entity " + selector + " weapon.offhand " + item);
                     break;
                 }
                 case "boots":
@@ -384,8 +388,8 @@ public class SelectorParser {
                 case "helmet":
                 case "leggings": {
                     tokens.expect('=');
-                    String item = Parser.parseItemAndCount();
-                    cmds.add("replaceitem entity " + selector + " armor." + Parser.ARMOR_SLOT_NAMES.get(field) + " " + item + " " + Parser.readOptionalInt());
+                    Item item = Parser.parseItemAndCount();
+                    cmds.add("replaceitem entity " + selector + " armor." + Parser.ARMOR_SLOT_NAMES.get(field) + " " + item);
                     break;
                 }
                 case "enable": {
@@ -419,7 +423,7 @@ public class SelectorParser {
 
     public static String parseObjectiveSelector() {
         TokenIterator tokens = Parser.tokens;
-        String selector = parseSelector();
+        Selector selector = parseSelector();
         tokens.expect('.');
         String obj = tokens.expect(TokenType.IDENTIFIER,"objective name");
         if (!Parser.hasObjective(obj)) Parser.compilationError(ErrorType.UNKNOWN,"objective " + obj);
@@ -457,5 +461,30 @@ public class SelectorParser {
         }
         Parser.compilationError(ErrorType.INVALID,"score operation");
         return cmds;
+    }
+
+    public static List<String> parseSelectorAndCommand() {
+        return parseSelectorCommand(parseSelector());
+    }
+
+    /**
+     * Parses either a normal @e[args] selector, or a variable representing a selector, such as an entity template or a /summon instance
+     * @return A Selector object representing the parsed selector
+     */
+    public static Selector parseAnySelector(boolean multiple) {
+        tokens = Parser.tokens;
+        if (tokens.isNext(TokenType.IDENTIFIER)) {
+            Object var = Parser.getContext().getVariable(tokens.peek().getValue()).eval();
+            if (var instanceof Selector) {
+                tokens.skip();
+                return (Selector) var;
+            }
+            Parser.compilationError(ErrorType.INVALID,"entity selector");
+            // parse summon instance variable
+        } else {
+            tokens.expect('@');
+            return SelectorParser.parseSelector();
+        }
+        return null;
     }
 }

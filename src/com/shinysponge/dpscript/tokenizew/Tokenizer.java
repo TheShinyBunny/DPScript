@@ -86,7 +86,7 @@ public class Tokenizer {
                         for (; pos < str.length() - 1 && isInteger(numStr + str.charAt(pos)); pos++) {
                             numStr += str.charAt(pos);
                         }
-                        if (pos < numStr.length() - 1) {
+                        if (pos < str.length() - 1) {
                             String doubleStr = numStr;
                             for (; pos < str.length() - 1 && isDouble(doubleStr + str.charAt(pos)); pos++) {
                                 doubleStr += str.charAt(pos);

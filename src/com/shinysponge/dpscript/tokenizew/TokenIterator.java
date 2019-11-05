@@ -1,7 +1,11 @@
 package com.shinysponge.dpscript.tokenizew;
 
+import com.shinysponge.dpscript.oop.ClassParser;
+import com.shinysponge.dpscript.oop.DPClass;
+import com.shinysponge.dpscript.oop.LazyValue;
 import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
+import com.sun.xml.internal.bind.v2.model.core.ID;
 
 import java.util.Iterator;
 import java.util.List;
@@ -215,6 +219,22 @@ public class TokenIterator implements Iterator<Token> {
         return true;
     }
 
+    public LazyValue<Integer> readInt() {
+        return ClassParser.parseExpression(this, DPClass.INT).map(i->(Integer) i);
+    }
+
+    public LazyValue<Double> readDouble() {
+        return ClassParser.parseExpression(this, DPClass.DOUBLE).map(d->(Double) d);
+    }
+
+    public LazyValue<Boolean> readBoolean() {
+        return ClassParser.parseExpression(this, DPClass.BOOLEAN).map(b->(Boolean)b);
+    }
+
+    public double readLiteralDouble() {
+        return Double.parseDouble(expect(TokenType.DOUBLE,"double"));
+    }
+
     /**
      * Reverts the token iterator to the previous token
      */
@@ -224,6 +244,14 @@ public class TokenIterator implements Iterator<Token> {
 
     public void suggestHere(List<String> suggestions) {
         Parser.getContext().suggest(peek(),suggestions.toArray(new String[0]));
+    }
+
+    public int readLiteralInt() {
+        return Integer.parseInt(expect(TokenType.INT,"integer"));
+    }
+
+    public boolean readLiteralBoolean() {
+        return Boolean.parseBoolean(expect("true","false"));
     }
 
     @FunctionalInterface

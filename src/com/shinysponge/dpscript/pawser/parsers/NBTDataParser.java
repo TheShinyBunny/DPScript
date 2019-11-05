@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
+import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
@@ -10,7 +11,7 @@ public class NBTDataParser {
     public static String parse(String selector) {
         TokenIterator tokens = Parser.tokens;
         if (tokens.skip("=")) {
-            String nbt = Parser.parseNBT();
+            NBT nbt = NBT.parse();
             return "data merge " + selector + " " + nbt;
         }
         tokens.expect('[');

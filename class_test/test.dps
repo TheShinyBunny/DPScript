@@ -1,0 +1,12 @@
+
+class Marker(string customTag, double mot) extends ArmorStand("myStand",customTag) {
+    invisible: true
+    Motion: [0.0,mot + 4,0.0]
+}
+
+function test {
+    stand = summon Marker("hello", 2.5) ~ ~ ~
+    stand.tp(~ ~10 ~)
+    at stand block(~ ~ ~) = stone
+    stand.kill()
+}

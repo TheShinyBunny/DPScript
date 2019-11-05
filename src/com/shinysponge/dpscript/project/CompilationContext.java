@@ -1,11 +1,16 @@
 package com.shinysponge.dpscript.project;
 
+import com.shinysponge.dpscript.entities.Entities;
+import com.shinysponge.dpscript.oop.AbstractClass;
+import com.shinysponge.dpscript.oop.DPClass;
+import com.shinysponge.dpscript.oop.LazyValue;
 import com.shinysponge.dpscript.pawser.CompilationError;
 import com.shinysponge.dpscript.pawser.GlobalLaterCheck;
 import com.shinysponge.dpscript.tokenizew.CodePos;
 import com.shinysponge.dpscript.tokenizew.Token;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class CompilationContext {
 
@@ -25,13 +30,21 @@ public class CompilationContext {
     private Map<String, MCFunction> functions = new HashMap<>();
     public List<GlobalLaterCheck> checks = new ArrayList<>();
     public Map<Token, String[]> suggestions = new HashMap<>();
-    private boolean createdConsts;
-    private boolean createdGlobal;
+    public Map<String, AbstractClass> classes = new HashMap<>();
+    public Stack<Map<String,LazyValue<?>>> variables = new Stack<>();
 
     public CompilationContext(Datapack project) {
         this.project = project;
         this.load = addFunction("init",FunctionType.LOAD);
         this.tick = addFunction("loop",FunctionType.TICK);
+        this.variables.push(new HashMap<>());
+        this.classes.put("int",DPClass.INT);
+        this.classes.put("string",DPClass.STRING);
+        this.classes.put("boolean",DPClass.BOOLEAN);
+        this.classes.put("double",DPClass.DOUBLE);
+        for (Entities e : Entities.values()) {
+            this.classes.put(e.getTypeClass().getName(),e.getTypeClass());
+        }
     }
 
     public MCFunction addFunction(String name, FunctionType type) {
@@ -100,6 +113,22 @@ public class CompilationContext {
         return "function " + project.getName() + ":" + name;
     }
 
+    public void enterBlock() {
+        variables.push(new HashMap<>());
+    }
+
+    public void exitBlock() {
+        variables.pop();
+    }
+
+    public void putVariable(String name, LazyValue<?> value) {
+        variables.peek().put(name,value);
+    }
+
+    public LazyValue<?> getVariable(String name) {
+        return variables.peek().get(name);
+    }
+
     public void runChecks() {
         checks.forEach(c->c.check(this));
     }
@@ -107,16 +136,12 @@ public class CompilationContext {
     public void logResults() {
         if (!errors.isEmpty()) {
             System.out.println(">>>>>>>>>>> COMPILATION FAILED <<<<<<<<<<<<<");
-            for (CompilationError e : errors) {
-                System.out.println(e.getMessage());
+            for (CompilationError e : errors.stream().sorted(Comparator.comparing(CompilationError::getPos)).collect(Collectors.toList())) {
+                System.out.println("line " + e.getPos().getLine() + ": " + e.getMessage());
                 System.out.println("------------------------");
             }
         } else {
             System.out.println(">>>>>>>>>>>> COMPILATION SUCCEED <<<<<<<<<<<<");
-            System.out.println(">> LOAD:");
-            load.forEachCommand(System.out::println);
-            System.out.println(">> TICK:");
-            tick.forEachCommand(System.out::println);
             for (Map.Entry<String, MCFunction> f : functions.entrySet()) {
                 System.out.println(">> FUNCTION " + f.getKey());
                 f.getValue().forEachCommand(System.out::println);
@@ -125,17 +150,11 @@ public class CompilationContext {
     }
 
     public void ensureConstants() {
-        if (!createdConsts) {
-            addLoad("scoreboard objectives add Consts dummy");
-            createdConsts = true;
-        }
+        ensureObjective("Consts");
     }
 
     public void ensureGlobal() {
-        if (!createdGlobal) {
-            addLoad("scoreboard objectives add Global dummy");
-            createdGlobal = true;
-        }
+        ensureObjective("Global");
     }
 
     public String getNamespace() {
@@ -144,5 +163,16 @@ public class CompilationContext {
 
     public CompilationResults getResults() {
         return new CompilationResults(project,errors,functions,suggestions);
+    }
+
+    public boolean hasClass(String name) {
+        return classes.containsKey(name);
+    }
+
+    public void ensureObjective(String name) {
+        if (!objectives.contains(name)) {
+            objectives.add(name);
+            addLoad("scoreboard objectives add " + name + " dummy");
+        }
     }
 }

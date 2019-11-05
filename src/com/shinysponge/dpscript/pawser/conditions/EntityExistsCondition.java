@@ -1,12 +1,14 @@
 package com.shinysponge.dpscript.pawser.conditions;
 
+import com.shinysponge.dpscript.pawser.selector.Selector;
+
 import java.util.Collections;
 import java.util.List;
 
 public class EntityExistsCondition extends Condition {
-    private final String selector;
+    private final Selector selector;
 
-    public EntityExistsCondition(String selector, boolean negate) {
+    public EntityExistsCondition(Selector selector, boolean negate) {
         super(negate);
         this.selector = selector;
     }

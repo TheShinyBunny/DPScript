@@ -37,4 +37,8 @@ public class MCFunction {
         File f = folder.child(name + ".mcfunction");
         f.setContent(String.join("\n",commands));
     }
+
+    public String getName() {
+        return name;
+    }
 }
