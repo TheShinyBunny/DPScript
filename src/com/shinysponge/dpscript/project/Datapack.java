@@ -20,8 +20,9 @@ public class Datapack {
     public CompilationResults compile() {
         CompilationContext ctx = new CompilationContext(this);
         Parser.init(ctx);
+        String path = "";
         for (AbstractFile f : root.children()) {
-            ProjectEntry.from(f).compile(ctx);
+            ProjectEntry.from(f,path).compile(ctx);
         }
         ctx.runChecks();
         ctx.logResults();

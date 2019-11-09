@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.pawser;
 
+import com.shinybunny.utils.json.Json;
 import com.shinysponge.dpscript.tokenizew.CodePos;
 import com.shinysponge.dpscript.tokenizew.Token;
 
@@ -41,5 +42,9 @@ public class CompilationError extends RuntimeException {
 
     public Token getToken() {
         return token;
+    }
+
+    public Json toJson() {
+        return new Json().set("message",getMessage().replaceAll("\"","'")).set("line",pos.getLine()).set("column",pos.getColumn()).set("file",pos.getFile().getFile().getFullPath());
     }
 }

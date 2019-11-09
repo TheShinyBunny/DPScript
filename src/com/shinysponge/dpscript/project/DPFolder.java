@@ -4,14 +4,18 @@ import com.shinybunny.utils.fs.AbstractFile;
 import com.shinybunny.utils.fs.Folder;
 
 public class DPFolder extends ProjectEntry {
-    public DPFolder(Folder file) {
-        super(file);
+
+    public DPFolder(Folder file, String path) {
+        super(file,path);
     }
 
     @Override
     public void compile(CompilationContext ctx) {
+        String prev = ctx.getPath();
+        ctx.setPath(path);
         for (AbstractFile f : file.asFolder().children()) {
-            ProjectEntry.from(f).compile(ctx);
+            ProjectEntry.from(f,path + file.getName() + "/").compile(ctx);
         }
+        ctx.setPath(prev);
     }
 }

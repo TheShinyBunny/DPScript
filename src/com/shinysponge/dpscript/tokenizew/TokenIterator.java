@@ -1,12 +1,15 @@
 package com.shinysponge.dpscript.tokenizew;
 
+import com.shinybunny.utils.StringUtils;
 import com.shinysponge.dpscript.oop.ClassParser;
 import com.shinysponge.dpscript.oop.DPClass;
 import com.shinysponge.dpscript.oop.LazyValue;
 import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
-import com.sun.xml.internal.bind.v2.model.core.ID;
+import com.shinysponge.dpscript.project.DPScript;
 
+import java.io.File;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -17,14 +20,16 @@ import java.util.List;
 public class TokenIterator implements Iterator<Token> {
 
     private final ErrorConsumer errorConsumer;
+    private final DPScript file;
     private List<Token> data;
     private int pos;
     private Token lastToken;
 
-    public TokenIterator(List<Token> data, ErrorConsumer errorConsumer) {
+    public TokenIterator(List<Token> data, ErrorConsumer errorConsumer, DPScript file) {
         this.data = data;
         this.pos = 0;
         this.errorConsumer = errorConsumer;
+        this.file = file;
         for (Token t : data) {
             if (t.getType() == TokenType.LINE_END) {
                 System.out.println();
@@ -36,13 +41,17 @@ public class TokenIterator implements Iterator<Token> {
     }
 
     public static TokenIterator from(String str) {
-        return new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),str),Parser::compilationError);
+        return new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),str),Parser::compilationError,Parser.getContext().getFile());
+    }
+
+    public static TokenIterator from(Token token) {
+        return new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),token),Parser::compilationError,Parser.getContext().getFile());
     }
 
     /**
      * Returns {@code true} if the iteration has more tokens.
      * (In other words, returns {@code true} if {@link #next} would
-     * return a real token rather than {@link Token#EOF})
+     * return a real token rather than {@link Token#eof(DPScript)})
      *
      * @return {@code true} if the iteration has more tokens
      */
@@ -58,7 +67,7 @@ public class TokenIterator implements Iterator<Token> {
      */
     @Override
     public Token next() {
-        if (pos >= data.size()) return Token.EOF;
+        if (pos >= data.size()) return Token.eof(file);
         return lastToken = data.get(pos++);
     }
 
@@ -76,7 +85,7 @@ public class TokenIterator implements Iterator<Token> {
      * @return The token at index <code>pos + i</code>
      */
     public Token peek(int i) {
-        if (pos + i >= data.size()) return Token.EOF;
+        if (pos + i >= data.size()) return Token.eof(file);
         return data.get(pos + i);
     }
 
@@ -135,7 +144,7 @@ public class TokenIterator implements Iterator<Token> {
      */
     public String expect(String... s) {
         if (!isNext(s)) {
-            error(ErrorType.EXPECTED, s.length == 1 ? s[0] : "one of (" + String.join(",", s) + ")");
+            error(ErrorType.EXPECTED, s.length == 1 ? s[0] : "one of (" + StringUtils.niceList(Arrays.asList(s)) + ")");
         }
         return nextValue();
     }

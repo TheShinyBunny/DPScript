@@ -32,6 +32,7 @@ public class CompilationContext {
     public Map<Token, String[]> suggestions = new HashMap<>();
     public Map<String, AbstractClass> classes = new HashMap<>();
     public Stack<Map<String,LazyValue<?>>> variables = new Stack<>();
+    private String path = "";
 
     public CompilationContext(Datapack project) {
         this.project = project;
@@ -48,7 +49,7 @@ public class CompilationContext {
     }
 
     public MCFunction addFunction(String name, FunctionType type) {
-        MCFunction f = new MCFunction(project.getName(), name, type);
+        MCFunction f = new MCFunction(project.getName(), path + name, type);
         functions.put(name,f);
         return f;
     }
@@ -88,6 +89,7 @@ public class CompilationContext {
     }
 
     public boolean hasGlobal(String name) {
+        System.out.println("globals: " + globals);
         return globals.contains(name);
     }
 
@@ -174,5 +176,13 @@ public class CompilationContext {
             objectives.add(name);
             addLoad("scoreboard objectives add " + name + " dummy");
         }
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public String getPath() {
+        return path;
     }
 }

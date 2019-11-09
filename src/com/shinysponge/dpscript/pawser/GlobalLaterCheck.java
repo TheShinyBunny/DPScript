@@ -21,7 +21,7 @@ public class GlobalLaterCheck {
 
     public void check(CompilationContext ctx) {
         if (!check.test(ctx)) {
-            ctx.addError(new CompilationError("Compilation error at " + pos + ": Unknown " + typeName + " '" + name + "'",pos));
+            ctx.addError(new CompilationError("Unknown " + typeName + " '" + name + "'",pos));
         }
     }
 }

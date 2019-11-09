@@ -1,14 +1,26 @@
 package com.shinysponge.dpscript;
 
+import com.shinybunny.utils.fs.File;
 import com.shinybunny.utils.fs.Folder;
-import com.shinybunny.utils.json.JsonFile;
+import com.shinybunny.utils.json.*;
+import com.shinysponge.dpscript.pawser.CompilationError;
 import com.shinysponge.dpscript.project.CompilationResults;
 import com.shinysponge.dpscript.project.Datapack;
 
 public class DPScriptMain {
 
     public static void main(String[] args) {
-        compile(Folder.of("class_test"));//.saveFunctions(Folder.of("output/oneplayersleep"));
+        String dir = args.length == 0 ? "class_test" : args[0];
+        CompilationResults results = compile(Folder.of(dir));//.saveFunctions(Folder.of("output/oneplayersleep"));
+        Json json = new Json();
+        JsonArray arr = new JsonArray();
+        for (CompilationError err : results.getErrors()) {
+            arr.add(err.toJson());
+        }
+        json.set("errors",arr);
+        String str = json.prettyPrint(4);
+        System.out.println(str);
+        File.of("compilerOutput.json").setContent(str);
     }
 
     public static CompilationResults compile(Folder src) {

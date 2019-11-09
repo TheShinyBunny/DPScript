@@ -6,8 +6,8 @@ import com.shinysponge.dpscript.pawser.Parser;
 
 public class DPScript extends ProjectEntry {
 
-    public DPScript(File file) {
-        super(file);
+    public DPScript(File file, String path) {
+        super(file,path);
     }
 
     @Override

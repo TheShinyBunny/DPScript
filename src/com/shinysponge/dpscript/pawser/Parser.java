@@ -1,6 +1,7 @@
 package com.shinysponge.dpscript.pawser;
 
 import com.shinybunny.utils.Array;
+import com.shinybunny.utils.ListUtils;
 import com.shinybunny.utils.MapBuilder;
 import com.shinysponge.dpscript.entities.EntityClass;
 import com.shinysponge.dpscript.entities.NBT;
@@ -442,6 +443,24 @@ public class Parser {
                 Duration duration = parseDuration();
                 list.add("schedule " + function + " " + ((duration.getSeconds() * 20) + (duration.getNano() / 50_000_000)));
                 break;
+            case "repeat":
+                if (tokens.isNext(TokenType.INT)) {
+                    int count = tokens.readLiteralInt();
+                    List<String> commands = parseStatement(ScopeType.NORMAL);
+                    for (int i = 0; i < count; i++) {
+                        list.addAll(commands);
+                        list.add("");
+                    }
+                } else {
+                    String var = parseVariable();
+                    ctx.ensureGlobal();
+                    list.add("scoreboard players set _i Global 0");
+                    String func = generateFunction(ListUtils.add(parseStatement(ScopeType.NORMAL),"scoreboard players add _i Global 1"));
+                    List<String> condCommands = new ScoreCondition(new Value("_i Global",false),"<",new Value(var,false),false).toCommandsAll("function " + func);
+                    ctx.getFunction(func).addAll(condCommands);
+                    list.addAll(condCommands);
+                }
+                break;
             default:
                 if (tokens.skipAll("(",")")) {
                     list.add(ctx.callFunction(token.getPos(),value));
@@ -468,6 +487,23 @@ public class Parser {
             compilationError(ErrorType.INVALID_STATEMENT,"value");
         }
         return list;
+    }
+
+    private static String parseVariable() {
+        if (tokens.skip("@")) {
+            Selector selector = SelectorParser.parseSelector();
+            tokens.expect(".");
+            String obj = tokens.expect(TokenType.IDENTIFIER,"selector objective");
+            if (!hasObjective(obj)) {
+                compilationError(ErrorType.UNKNOWN,"objective " + obj + " for entity selector");
+            }
+            return selector + " " + obj;
+        }
+        String name = tokens.expect(TokenType.IDENTIFIER, "variable name");
+        if (!ctx.hasConstant(name) && !ctx.hasGlobal(name)) {
+            compilationError(ErrorType.UNKNOWN,"variable " + name);
+        }
+        return getVariableAccess(name);
     }
 
     private static String readBlockCommand(String pos) {

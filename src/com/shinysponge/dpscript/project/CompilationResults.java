@@ -54,6 +54,6 @@ public class CompilationResults {
     }
 
     public String[] getEndOfFileSuggestions(File file) {
-        return suggestions.entrySet().stream().filter(e->e.getKey().getPos() == CodePos.END && e.getKey().getPos().getFile().getFile().sameAs(file)).findFirst().orElse(new DummyEntry<>(null,new String[0])).getValue();
+        return suggestions.entrySet().stream().filter(e->e.getKey().getPos().getLine() == -1 && e.getKey().getPos().getFile().getFile().sameAs(file)).findFirst().orElse(new DummyEntry<>(null,new String[0])).getValue();
     }
 }

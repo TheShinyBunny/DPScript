@@ -233,7 +233,7 @@ public class SelectorParser {
      * @return A vanilla selector string
      */
     public static Selector parseSelector(Token selector) {
-        TokenIterator tokens = new TokenIterator(Tokenizer.tokenize(Parser.getContext().getFile(),selector),Parser::compilationError);
+        TokenIterator tokens = TokenIterator.from(selector);
         return parseSelectorFrom(tokens);
     }
 

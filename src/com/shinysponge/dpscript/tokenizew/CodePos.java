@@ -35,7 +35,7 @@ public class CodePos implements Comparable<CodePos> {
 
     @Override
     public String toString() {
-        return this == END ? "end" : file.getName() + "(line " + line + ", column " + column + ")";
+        return this.line == -1 ? "end" : file.getName() + "(line " + line + ", column " + column + ")";
     }
 
     @Override
