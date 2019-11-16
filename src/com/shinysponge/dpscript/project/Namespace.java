@@ -17,10 +17,11 @@ public class Namespace {
 
     public Namespace(File dir) {
         this.dir = dir;
-        this.name = dir.getName();
+        this.name = dir.getName().toLowerCase();
     }
 
     public void addFunction(MCFunction function) {
+        System.out.println("adding function to namespace " + name);
         functions.put(function.getName(),function);
     }
 

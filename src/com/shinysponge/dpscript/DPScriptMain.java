@@ -13,19 +13,18 @@ public class DPScriptMain {
 
     public static void main(String[] args) {
         String dir = args.length == 0 ? "class_test" : args[0];
-
-        CompilationResults results = compile(new File(dir));//.saveFunctions(Folder.of("output/oneplayersleep"));
+        File dest = new File(dir);
+        CompilationResults results = compile(dest);//.saveFunctions(Folder.of("output/oneplayersleep"));
         Json json = new Json();
         JsonArray arr = new JsonArray();
         for (CompilationError err : results.getErrors()) {
             arr.add(err.toJson());
         }
         json.set("errors",arr);
-        json.set("suggestions",results.getSuggestions());
         String str = json.prettyPrint(4);
         Files.write("compilerOutput.json",str);
         if (results.isSuccessful()) {
-            results.getDatapack().save(new File(dir,"out"));
+            results.getDatapack().save(new File(dest,"ignore"));
         }
     }
 

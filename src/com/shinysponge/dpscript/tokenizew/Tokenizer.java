@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.tokenizew;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,17 +9,17 @@ public class Tokenizer {
     public static final char[] SYMBOLS = "{}().,;[]=;~^@:#".toCharArray();
     public static final String[] OPERATORS = new String[]{"+", "-", "++", "--", "*", "/", "%", "<", ">", ">=", "<=", "==", "><", "!=", "!", "&&", "||","+=","-="}; // , "&", "|", "^", "~"
 
-    public static List<Token> tokenize(DPScript file, Token token) {
+    public static List<Token> tokenize(File file, Token token) {
         CodePos pos = token.getPos();
         return tokenize(file,token.getValue(),pos.getPos(),pos.getColumn(),pos.getLine());
     }
 
 
-    public static List<Token> tokenize(DPScript file, String str) {
+    public static List<Token> tokenize(File file, String str) {
         return tokenize(file,str,0,0,1);
     }
 
-    private static List<Token> tokenize(DPScript file, String str, int initialPos, int initialColumn, int initialLine) {
+    private static List<Token> tokenize(File file, String str, int initialPos, int initialColumn, int initialLine) {
         List<Token> tokens = new ArrayList<>();
         int pos = initialPos;
         int column = initialColumn;

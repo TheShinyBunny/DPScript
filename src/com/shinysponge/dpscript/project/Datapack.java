@@ -47,9 +47,10 @@ public class Datapack {
     }
 
     public void save(File dest) {
-        Files.createIfNotExists(dest);
-        DPScriptMain.generateMCMeta(dest,description);
-        File data = Files.create(dest,"data");
+        File root = Files.create(dest,name);
+        Files.createIfNotExists(root);
+        DPScriptMain.generateMCMeta(root,description);
+        File data = Files.create(root,"data");
         for (Namespace ns : namespaces) {
             ns.saveIn(data);
         }

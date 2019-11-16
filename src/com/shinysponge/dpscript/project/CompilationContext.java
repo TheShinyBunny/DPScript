@@ -1,5 +1,6 @@
 package com.shinysponge.dpscript.project;
 
+import com.shinybunny.utils.StringUtils;
 import com.shinybunny.utils.fs.Files;
 import com.shinysponge.dpscript.entities.Entities;
 import com.shinysponge.dpscript.oop.AbstractClass;
@@ -59,7 +60,9 @@ public class CompilationContext {
         Parser.init(this);
         namespace = project.getDefaultNamespace();
         for (File f : project.getDir().listFiles()) {
-            compileFile(f);
+            if (!f.getName().equalsIgnoreCase("ignore")) {
+                compileFile(f);
+            }
         }
         runChecks();
         setNamespace(null);
@@ -92,6 +95,7 @@ public class CompilationContext {
     }
 
     private void compileSingleFile(File file) {
+        System.out.println("compiling single file " + file);
         if (file.isDirectory()) {
             String prev = path;
             path += "/" + file.getName();
@@ -105,10 +109,14 @@ public class CompilationContext {
     }
 
     private void compileDPScript(File file) {
+        System.out.println("compiling potential script " + file);
         if (Files.extension(file).equals("dps")) {
+            System.out.println("it has extension DPS, so yay!");
+            this.file = file;
             variables.clear();
             variables.push(new HashMap<>());
             Parser.parse(file);
+            this.file = null;
         }
     }
 
@@ -124,14 +132,14 @@ public class CompilationContext {
 
     public void addTick(String command) {
         if (mainTick == null) {
-            mainTick = new MCFunction(namespace,"loop");
+            mainTick = addFunction("loop");
         }
         mainTick.add(command);
     }
 
     public void addLoad(String command) {
         if (mainLoad == null) {
-            mainLoad = new MCFunction(namespace,"init");
+            mainLoad = addFunction("init");
         }
         mainLoad.add(command);
     }
@@ -161,6 +169,7 @@ public class CompilationContext {
     }
 
     public void addFunction(String name, List<String> commands) {
+        System.out.println("adding function " + name);
         MCFunction f = addFunction(name);
         commands.forEach(f::add);
     }
@@ -175,7 +184,7 @@ public class CompilationContext {
         if (getFunction(name) == null) {
             checks.add(new GlobalLaterCheck(name,"function",pos,ctx->ctx.getFunction(name) != null));
         }
-        return "function " + namespace.getName() + ":" + name;
+        return "function " + namespace.getName() + ":" + StringUtils.toLowerCaseUnderscore(name);
     }
 
     public void enterBlock() {
@@ -208,7 +217,7 @@ public class CompilationContext {
         } else {
             System.out.println(">>>>>>>>>>>> COMPILATION SUCCEED <<<<<<<<<<<<");
             System.out.println("Generated " + project.getNamespaces().stream().map(Namespace::getFunctions).map(Collection::size).reduce(Integer::sum).orElse(0) + " functions");
-            System.out.println("Elapsed time: " + (startTime - System.currentTimeMillis()) + "ms");
+            System.out.println("Elapsed time: " + (System.currentTimeMillis() - startTime) + "ms");
         }
     }
 
@@ -279,5 +288,9 @@ public class CompilationContext {
             f.addAll(cmds);
             loads.add(f);
         }
+    }
+
+    public File getFile() {
+        return file;
     }
 }

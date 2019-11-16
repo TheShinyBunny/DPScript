@@ -1,6 +1,8 @@
 package com.shinysponge.dpscript.project;
 
+import com.shinybunny.utils.StringUtils;
 import com.shinybunny.utils.fs.Files;
+import com.shinysponge.dpscript.pawser.Parser;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -32,7 +34,7 @@ public class MCFunction implements Taggable {
     }
 
     public void saveIn(File folder) {
-        File f = new File(folder,name + ".mcfunction");
+        File f = new File(folder, StringUtils.toLowerCaseUnderscore(name) + ".mcfunction");
         Files.write(f,String.join("\n",commands));
     }
 

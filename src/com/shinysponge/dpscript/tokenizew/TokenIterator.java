@@ -8,6 +8,7 @@ import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
 
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -19,12 +20,12 @@ import java.util.List;
 public class TokenIterator implements Iterator<Token> {
 
     private final ErrorConsumer errorConsumer;
-    private final DPScript file;
+    private final File file;
     private List<Token> data;
     private int pos;
     private Token lastToken;
 
-    public TokenIterator(List<Token> data, ErrorConsumer errorConsumer, DPScript file) {
+    public TokenIterator(List<Token> data, ErrorConsumer errorConsumer, File file) {
         this.data = data;
         this.pos = 0;
         this.errorConsumer = errorConsumer;
@@ -50,7 +51,7 @@ public class TokenIterator implements Iterator<Token> {
     /**
      * Returns {@code true} if the iteration has more tokens.
      * (In other words, returns {@code true} if {@link #next} would
-     * return a real token rather than {@link Token#eof(DPScript)})
+     * return a real token rather than {@link Token#eof(File)})
      *
      * @return {@code true} if the iteration has more tokens
      */

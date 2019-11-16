@@ -45,6 +45,6 @@ public class CompilationError extends RuntimeException {
     }
 
     public Json toJson() {
-        return new Json().set("message",getMessage().replaceAll("\"","'")).set("line",pos.getLine()).set("column",pos.getColumn()).set("file",pos.getFile().getFile().getFullPath());
+        return new Json().set("message",getMessage().replaceAll("\"","'")).set("line",pos.getLine()).set("column",pos.getColumn()).set("file",pos.getFile().getPath().replaceAll("\\\\","/"));
     }
 }
