@@ -1,23 +1,21 @@
 package com.shinysponge.dpscript.project;
 
-import com.shinybunny.utils.fs.File;
-import com.shinybunny.utils.fs.Folder;
+import com.shinybunny.utils.fs.Files;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class MCFunction {
+public class MCFunction implements Taggable {
 
-    private String namespace;
+    private Namespace namespace;
     private String name;
     private List<String> commands;
-    private FunctionType type;
 
-    public MCFunction(String namespace, String name, FunctionType type) {
+    public MCFunction(Namespace namespace, String name) {
         this.namespace = namespace;
         this.name = name;
-        this.type = type;
         this.commands = new ArrayList<>();
     }
 
@@ -33,12 +31,25 @@ public class MCFunction {
         commands.forEach(consumer);
     }
 
-    public void saveIn(Folder folder) {
-        File f = folder.child(name + ".mcfunction");
-        f.setContent(String.join("\n",commands));
+    public void saveIn(File folder) {
+        File f = new File(folder,name + ".mcfunction");
+        Files.write(f,String.join("\n",commands));
     }
 
     public String getName() {
         return name;
+    }
+
+    public Namespace getNamespace() {
+        return namespace;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String getId() {
+        return namespace.getName() + ":" + name;
     }
 }

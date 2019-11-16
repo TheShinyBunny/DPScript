@@ -3,6 +3,8 @@ package com.shinysponge.dpscript.pawser;
 import com.shinybunny.utils.Array;
 import com.shinybunny.utils.ListUtils;
 import com.shinybunny.utils.MapBuilder;
+import com.shinybunny.utils.Pair;
+import com.shinybunny.utils.fs.Files;
 import com.shinysponge.dpscript.entities.EntityClass;
 import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.oop.*;
@@ -10,12 +12,13 @@ import com.shinysponge.dpscript.pawser.conditions.*;
 import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
 import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
-import com.shinysponge.dpscript.pawser.selector.Selector;
-import com.shinysponge.dpscript.pawser.selector.SimpleSelector;
+import com.shinysponge.dpscript.pawser.score.EntryScore;
+import com.shinysponge.dpscript.pawser.score.LazyScoreValue;
+import com.shinysponge.dpscript.pawser.score.Score;
 import com.shinysponge.dpscript.project.CompilationContext;
-import com.shinysponge.dpscript.project.DPScript;
 import com.shinysponge.dpscript.tokenizew.*;
 
+import java.io.File;
 import java.time.Duration;
 import java.util.*;
 import java.util.function.Function;
@@ -32,11 +35,13 @@ public class Parser {
      */
     public static TokenIterator tokens;
 
-    private static Array<String> originalCode;
+    private static String originalCode;
 
     private static Condition lastIf;
-    private static LazyValue<?> returnedValue;
+    private static Variable returnedValue;
     public static ClassInstance currentInstance;
+    private static boolean switchBroken;
+    private static EntryScore switchBrokenScore = Score.global("_switchBroken");
 
     /**
      * Initializes the Parser class with the current parsing context
@@ -45,11 +50,10 @@ public class Parser {
         Parser.ctx = ctx;
     }
 
-    public static void parse(DPScript file) {
+    public static void parse(File file) {
         if (ctx == null) return;
-        ctx.setFile(file);
-        Parser.originalCode = file.getCode();
-        Parser.tokens = TokenIterator.from(originalCode.join("\n"));
+        Parser.originalCode = Files.read(file);
+        Parser.tokens = TokenIterator.from(originalCode);
         Parser.parse();
     }
 
@@ -77,23 +81,28 @@ public class Parser {
      */
     public static void compilationError(ErrorType type, String description) {
         String msg;
+
         Token token = null;
         CodePos pos = tokens.peek().getPos();
         if (type == null) {
             msg = description;
-        } else if (type == ErrorType.INVALID_STATEMENT) {
-            msg = "Invalid " + description + " statement, found " + tokens.peek();
-        } else if (type != ErrorType.MISSING && type != ErrorType.DUPLICATE && type != ErrorType.UNKNOWN) {
-            token = tokens.next();
-            msg = type.getName() + " " + description + ", found: " + token.getValue();
         } else {
-            msg = type.getName() + " " + description;
+            tokens.pushBack();
+            token = tokens.next();
+            pos = token.getPos();
+            if (type == ErrorType.INVALID_STATEMENT) {
+                msg = "Invalid " + description + " statement, found " + token;
+            } else if (type != ErrorType.MISSING && type != ErrorType.DUPLICATE && type != ErrorType.UNKNOWN) {
+                msg = type.getName() + " " + description + ", found: " + token.getValue();
+            } else {
+                msg = type.getName() + " " + description;
+            }
         }
         ctx.addError(new CompilationError(msg,pos,token));
     }
 
     /**
-     * Parses a single statement, or a block of statements. Will call either {@link #parseGlobal()} or {@link #parseNormal(boolean)} depending on the <code>scope</code>.
+     * Parses a single statement, or a block of statements. Will call either {@link #parseGlobal()} or {@link #parseNormal(ScopeType)} depending on the <code>scope</code>.
      * @return The command translated from the statement, or multiple commands if it was a block statement or a conditional statement with || operator/s.
      */
     public static List<String> parseStatement(ScopeType scope) {
@@ -102,7 +111,7 @@ public class Parser {
         if (scope == ScopeType.GLOBAL) {
             parseGlobal();
         } else {
-            list.addAll(parseNormal(scope == ScopeType.VALUE));
+            list.addAll(parseNormal(scope));
         }
         return list;
     }
@@ -113,6 +122,8 @@ public class Parser {
     private static void parseGlobal() {
         Token t = tokens.next();
         switch (t.getValue()) {
+            case "load":
+                parseLoad();
             case "tick":
                 parseTick();
                 break;
@@ -121,7 +132,7 @@ public class Parser {
                 if (ctx.getFunction(name) != null)
                     compilationError(ErrorType.DUPLICATE,"function " + name);
                 tokens.expect('{');
-                ctx.addFunction(name,parseBlock());
+                ctx.addFunction(name,parseBlock(ScopeType.NORMAL));
                 break;
             }
             case "bossbar":
@@ -173,45 +184,57 @@ public class Parser {
                 break;
             }
             default:
-                tokens.pushBack();
                 compilationError(ErrorType.INVALID_STATEMENT,"global");
 
         }
     }
 
+    private static void parseLoad() {
+        tokens.expect('{');
+        tokens.nextLine();
+        List<String> cmds = parseBlock(ScopeType.NORMAL);
+        ctx.addLoadFunction("init",cmds);
+    }
+
     private static void parseTick() {
         tokens.expect('{');
         tokens.nextLine();
-        List<String> cmds = parseBlock();
-        cmds.forEach(ctx::addTick);
+        List<String> cmds = parseBlock(ScopeType.NORMAL);
+        ctx.addTickFunction("loop",cmds);
     }
 
     /**
      * Parses a block of statements. The next token must be a open curly bracket ( { )
      * @return The list of commands compiled from the normal statements inside that block.
      */
-    public static List<String> parseBlock() {
+    public static List<String> parseBlock(ScopeType scope) {
         List<String> list = new ArrayList<>();
         ctx.enterBlock();
         while (tokens.hasNext() && !tokens.isNext("}")) {
             if (tokens.skip(TokenType.LINE_END)) continue;
-            list.addAll(parseStatement(ScopeType.NORMAL));
+            list.addAll(parseStatement(scope));
             tokens.nextLine();
         }
         ctx.exitBlock();
+        switchBroken = false;
         tokens.expect("}");
         return list;
     }
 
     /**
      * Parses a normal scope statement. This is mainly the actual minecraft commands.
-     * @param needsValue true if this statement is a value statement, which means it was called from another statement to get a return value.
+     * @param scope The scope context of the statement. Can change what statements can be parsed.
      * @return The command/s compiled from the next statement.
      */
-    private static List<String> parseNormal(boolean needsValue) {
+    private static List<String> parseNormal(ScopeType scope) {
         List<String> list = new ArrayList<>();
+        boolean needsValue = scope == ScopeType.VALUE;
         if (needsValue) {
             returnedValue = null;
+        }
+        if (switchBroken) {
+            compilationError(ErrorType.INVALID,"statement, unreachable code after switch break");
+            return list;
         }
         if(tokens.isNext(TokenType.RAW_COMMAND)) {
             list.add(tokens.nextValue());
@@ -227,7 +250,7 @@ public class Parser {
         String value = token.getValue();
         switch (value){
             case "{":
-                list.addAll(parseBlock());
+                list.addAll(parseBlock(scope));
                 break;
             case "print":
                 list.add("say " + tokens.expect(TokenType.STRING, "message"));
@@ -236,7 +259,12 @@ public class Parser {
                 list.addAll(parseIf());
                 break;
             case "@":
-                list.addAll(SelectorParser.parseSelectorAndCommand());
+                Pair<Selector,List<String>> pair = SelectorParser.parseSelectorAndCommand();
+                if (pair.getSecond().isEmpty() && needsValue) {
+                    returnedValue = new Variable(VariableType.SELECTOR,pair.getFirst());
+                } else {
+                    list.addAll(pair.getSecond());
+                }
                 break;
             case "clone": {
                 String clone = "clone " + readPosition() + " " + readPosition() + " " + readPosition();
@@ -312,7 +340,7 @@ public class Parser {
                     if (tokens.isNext("{")) {
                         nbt = NBT.parse();
                     }
-                    selector = new SimpleSelector('e',MapBuilder.of("type",entityId));
+                    selector = new Selector('e',MapBuilder.of("type",entityId));
                 }
                 String addAge = "scoreboard players add @e[type=" + entityId + "] _age 1";
                 if (needsValue) {
@@ -322,13 +350,13 @@ public class Parser {
                 list.add("summon " + entityId + " " + pos + (nbt == null ? "" : " " + nbt));
                 if (needsValue) {
                     list.add(addAge);
-                    returnedValue = LazyValue.literal(selector.toSingle().set("limit","1").set("scores","{_age=1}"));
+                    returnedValue = new Variable(VariableType.SELECTOR,selector.toSingle().set("limit","1").set("scores","{_age=1}"));
                 }
                 break;
             }
             case "for": {
                 Selector selector = SelectorParser.parseAnySelector(true);
-                list.add("execute as " + selector + " at @s run " + readExecuteRunCommand());
+                list.add("execute as " + selector + " at @s run " + readExecuteRunCommand("execute"));
                 break;
             }
             case "as":
@@ -452,34 +480,65 @@ public class Parser {
                         list.add("");
                     }
                 } else {
-                    String var = parseVariable();
+                    Variable var = parseVariable();
                     ctx.ensureGlobal();
                     list.add("scoreboard players set _i Global 0");
-                    String func = generateFunction(ListUtils.add(parseStatement(ScopeType.NORMAL),"scoreboard players add _i Global 1"));
-                    List<String> condCommands = new ScoreCondition(new Value("_i Global",false),"<",new Value(var,false),false).toCommandsAll("function " + func);
+                    String func = generateFunction("repeat",ListUtils.add(parseStatement(ScopeType.NORMAL),"scoreboard players add _i Global 1"));
+                    List<String> condCommands = new ScoreCondition(Score.global("_i"),"<",var.get(Score.class),false).toCommandsAll("function " + func);
                     ctx.getFunction(func).addAll(condCommands);
                     list.addAll(condCommands);
                 }
                 break;
+            case "count":
+                Selector selector = SelectorParser.parseAnySelector(true);
+                list.add("execute if entity " + selector);
+                break;
+            case "switch":
+                Conditionable c = Conditionable.parse(tokens);
+                if (c != null) {
+                    list.addAll(readSwitchBlock(c));
+                }
+                break;
+            case "break":
+                if (scope == ScopeType.SWITCH_CASE) {
+                    list.add("scoreboard players set " + switchBrokenScore + " 1");
+                    switchBroken = true;
+                    break;
+                }
             default:
                 if (tokens.skipAll("(",")")) {
                     list.add(ctx.callFunction(token.getPos(),value));
                 } else if (ctx.hasGlobal(value)) {
-                    list.addAll(SelectorParser.parseScoreOperators(getVariableAccess(value)));
+                    list.add(SelectorParser.parseScoreOperators(getScoreAccess(value)));
                 } else if (ctx.bossbars.contains(value)) {
                     list.add(parseBossbarCommand(value));
                 } else if (ctx.getVariable(value) != null) {
-                    Object var = ctx.getVariable(value);
-                    if (var instanceof Selector) {
-                        list.addAll(SelectorParser.parseSelectorCommand((Selector)var));
+                    Variable var = ctx.getVariable(value);
+                    if (tokens.skip("=")) {
+                        list.addAll(parseStatement(ScopeType.VALUE));
+                        if (var.getType() == VariableType.SCORE) {
+                            createGlobal(value);
+                            var.get(LazyScoreValue.class).storeValue(list,Score.global(value), 1);
+                        }
+                        ctx.putVariable(value,var);
+                    } else if (var.getType().getAccessParser() != null){
+                        list.addAll(var.getType().getAccessParser().apply(var.getLazyValue(),value));
+                    } else {
+                        compilationError(null,"Invalid variable access");
                     }
                 } else if (tokens.skip("=")) {
                     list.addAll(parseStatement(ScopeType.VALUE));
-                    ctx.putVariable(value,returnedValue);
+                    if (returnedValue != null) {
+                        if (returnedValue.getType() == VariableType.SCORE) {
+                            createGlobal(value);
+                            returnedValue.get(LazyScoreValue.class).storeValue(list,Score.global(value), 1);
+                        }
+                        ctx.putVariable(value,returnedValue);
+                    }
                 } else if (needsValue) {
-                    returnedValue = ClassParser.parseExpression(tokens,null);
-                } else {
                     tokens.pushBack();
+                    returnedValue = new Variable(VariableType.SCORE,LazyScoreValue.parseExpression());
+                } else {
                     compilationError(ErrorType.INVALID_STATEMENT,"function");
                 }
         }
@@ -489,7 +548,55 @@ public class Parser {
         return list;
     }
 
-    private static String parseVariable() {
+    private static List<String> readSwitchBlock(Conditionable value) {
+        List<String> list = new ArrayList<>();
+        EntryScore score = Score.global("_switchValue");
+        value.storeValue(list,score,1);
+        list.add("scoreboard players set " + switchBrokenScore + " 0");
+        switchBroken = false;
+        tokens.expect('{');
+        ctx.enterBlock();
+        while (tokens.hasNext() && !tokens.isNext("}")) {
+            if (tokens.skip(TokenType.LINE_END)) continue;
+            if (tokens.skip("case")) {
+                ConditionOption option = value.getHolder().parseOption();
+                if (option == null) {
+                    compilationError(ErrorType.INVALID,"case value");
+                    option = Score.of(0);
+                }
+                tokens.expect(":");
+                List<String> block = parseCase();
+                list.add("execute if score " + switchBrokenScore + " matches 0 " + value.getHolder().compareAndRun(option,score,generateFunction("case_" + option.getName(),block)));
+            } else if (tokens.skip("default")) {
+                tokens.expect(":");
+                List<String> block = parseCase();
+                list.add("execute if score " + switchBrokenScore + " matches 0 run " + generateFunction("case_default",block));
+            }
+        }
+        ctx.exitBlock();
+        list.add("scoreboard players set " + switchBrokenScore + " 0");
+        tokens.expect("}");
+        return list;
+    }
+
+    private static List<String> parseCase() {
+        if (tokens.skip(TokenType.LINE_END)) {
+            List<String> block = new ArrayList<>();
+            while (!tokens.isNext("case","default","}")) {
+                if (tokens.skip(TokenType.LINE_END)) continue;
+                block.addAll(parseStatement(ScopeType.SWITCH_CASE));
+                tokens.nextLine();
+            }
+            switchBroken = false;
+            return block;
+        } else {
+            List<String> block = parseStatement(ScopeType.SWITCH_CASE);
+            switchBroken = false;
+            return block;
+        }
+    }
+
+    private static Variable parseVariable() {
         if (tokens.skip("@")) {
             Selector selector = SelectorParser.parseSelector();
             tokens.expect(".");
@@ -497,13 +604,13 @@ public class Parser {
             if (!hasObjective(obj)) {
                 compilationError(ErrorType.UNKNOWN,"objective " + obj + " for entity selector");
             }
-            return selector + " " + obj;
+            return new Variable(VariableType.SCORE,LazyValue.literal(new EntryScore(obj,selector.toString())));
         }
         String name = tokens.expect(TokenType.IDENTIFIER, "variable name");
         if (!ctx.hasConstant(name) && !ctx.hasGlobal(name)) {
             compilationError(ErrorType.UNKNOWN,"variable " + name);
         }
-        return getVariableAccess(name);
+        return new Variable(VariableType.SCORE,LazyValue.literal(getScoreAccess(name)));
     }
 
     private static String readBlockCommand(String pos) {
@@ -532,7 +639,6 @@ public class Parser {
                 Item item = parseItemAndCount();
                 return "replaceitem block " + pos + " container." + slot + " " + item;
         }
-        tokens.pushBack();
         compilationError(ErrorType.UNKNOWN,"block operation " + member);
         return "";
     }
@@ -568,7 +674,7 @@ public class Parser {
                 return "execute " + chain + " run " + cmds.get(0);
             }
         } else {
-            String fName = generateFunction(cmds);
+            String fName = generateFunction("execute",cmds);
             return "execute " + chain + " run function " + fName;
         }
     }
@@ -637,7 +743,6 @@ public class Parser {
                 tokens.expect('(');tokens.expect(')');
                 return "bossbar remove " + bossbar;
         }
-        tokens.pushBack();
         compilationError(ErrorType.UNKNOWN,"bossbar field/command");
         return "";
     }
@@ -654,10 +759,10 @@ public class Parser {
         if (tokens.isNext("result","success")) {
             method = tokens.nextValue();
             tokens.expect('(');
-            cmd = readExecuteRunCommand();
+            cmd = readExecuteRunCommand("execute");
             tokens.expect(')');
         } else {
-            cmd = readExecuteRunCommand();
+            cmd = readExecuteRunCommand("execute");
         }
 
         return "execute store " + method + " " + storeCommand + " run " + cmd;
@@ -778,7 +883,6 @@ public class Parser {
                         d = d.plusDays(n);
                         break;
                         default:
-                            tokens.pushBack();
                             compilationError(ErrorType.INVALID,"duration unit, expected one of (s/seconds/secs, t/ticks, m/mins/minutes, h/hrs/hours, d/days)");
                 }
                 if (tokens.isNext(TokenType.INT)) {
@@ -825,12 +929,30 @@ public class Parser {
         return res;
     }
 
-    public static final List<String> entityIds = Arrays.asList("creeper","skeleton","item","tnt","spider","zombie","ender_dragon");
+    public static final List<String> entityIds = Arrays.asList("creeper","skeleton","item","tnt","spider","zombie","ender_dragon","armor_stand");
+
+    public static final Map<String,String> posNameMap = new HashMap<String, String>() {{
+        put("south","~ ~ ~1");
+        put("north","~ ~ ~-1");
+        put("west","~-1 ~ ~");
+        put("east","~1 ~ ~");
+        put("up","~ ~1 ~");
+        put("down","~ ~-1 ~");
+    }};
 
     /**
      * Reads position coordinates. Joins 3 {@link #readCoordinate()} calls.
      */
     public static String readPosition() {
+        if (tokens.skip(">")) {
+            String posName = tokens.expect(TokenType.IDENTIFIER,"relative position name");
+            String pos = posNameMap.get(posName);
+            if (pos == null) {
+                Parser.compilationError(ErrorType.INVALID,"relative position name");
+                return "~ ~ ~";
+            }
+            return pos;
+        }
         return readCoordinates(3);
     }
 
@@ -842,11 +964,11 @@ public class Parser {
     }
 
     public static String readCoordinates(int count) {
-        String pos = "";
+        String[] coords = new String[count];
         for (int i = 0; i < count; i++) {
-            pos += readCoordinate() + " ";
+            coords[i] = readCoordinate();
         }
-        return pos.trim();
+        return String.join(" ",coords);
     }
 
     /**
@@ -870,7 +992,7 @@ public class Parser {
      * @param tag Whether or not to read block tags (block ids that start with #)
      * @return A valid block state selector
      */
-    private static String parseBlockId(boolean tag) {
+    public static String parseBlockId(boolean tag) {
         String block = parseResourceLocation(tag);
         boolean hadState = false;
         if (tokens.skip("[")) {
@@ -878,7 +1000,9 @@ public class Parser {
             hadState = true;
         }
         if (tokens.isNext("{")) {
-            block += NBT.parse();
+            if (tokens.peek(1).getType() != TokenType.LINE_END) {
+                block += NBT.parse();
+            }
         }
         if (!hadState && tokens.skip("[")) {
             block += parseState();
@@ -923,7 +1047,7 @@ public class Parser {
 
     private static List<String> parseIf() {
         Condition cond = parseCondition(false);
-        String command = readExecuteRunCommand();
+        String command = readExecuteRunCommand("if");
         List<String> cmds = cond.toCommandsAll(command);
         if (tokens.skip("else")) {
             cmds.addAll(parseElse(cond));
@@ -934,7 +1058,7 @@ public class Parser {
     }
 
     private static List<String> parseElse(Condition condition) {
-        String command = readExecuteRunCommand();
+        String command = readExecuteRunCommand("else");
         condition.negate();
         return condition.toCommandsAll(command);
     }
@@ -942,7 +1066,7 @@ public class Parser {
     private static List<String> parseWhile() {
         Condition condition = parseCondition(false);
         List<String> then = parseStatement(ScopeType.NORMAL);
-        String func = generateFunction(then);
+        String func = generateFunction("while",then);
         List<String> condCommands = condition.toCommandsAll("function " + func);
         ctx.getFunction(func).addAll(condCommands);
         return condCommands;
@@ -958,7 +1082,7 @@ public class Parser {
         switch (t.getValue()) {
             case "!": {
                 if (negatable) {
-                    compilationError(ErrorType.INVALID,"exclamation point twice in a row (!!)");
+                    compilationError(null,"Cannot have an exclamation point twice in a row (!!)");
                 }
                 boolean all = tokens.isNext("(");
                 Condition c = parseCondition(true);
@@ -984,7 +1108,7 @@ public class Parser {
                     if (!hasObjective(obj)) {
                         compilationError(ErrorType.UNKNOWN,"objective " + obj + " for entity selector");
                     }
-                    return parseScoreOperators(selector + " " + obj,false);
+                    return parseScoreOperators(new EntryScore(obj,selector.toString()));
                 }
                 break;
         }
@@ -992,16 +1116,15 @@ public class Parser {
         switch (t.getType()) {
             case IDENTIFIER:
                 if (!ctx.hasGlobal(t.getValue()) && !ctx.hasConstant(t.getValue())) {
-                    tokens.pushBack();
                     compilationError(ErrorType.UNKNOWN, "constant or global " + t.getValue());
                 }
-                return parseScoreOperators(getVariableAccess(t.getValue()),false);
+                return parseScoreOperators(getScoreAccess(t.getValue()));
             case INT:
-                return parseScoreOperators(t.getValue(),true);
+                return parseScoreOperators(Score.of(Integer.parseInt(t.getValue())));
                 default:
                     String pos;
                     tokens.pushBack();
-                    if (tokens.isNext("~","^") || tokens.isNext(TokenType.INT,TokenType.DOUBLE)) {
+                    if (tokens.isNext("~","^",">") || tokens.isNext(TokenType.INT,TokenType.DOUBLE)) {
                         pos = readPosition();
                         if (tokens.skip(",")) {
                             String end = readPosition();
@@ -1039,7 +1162,6 @@ public class Parser {
                             return chainConditions(new BlockCondition(pos, block, negate));
                         }
                     } else {
-                        tokens.pushBack();
                         compilationError(ErrorType.INVALID,"token in condition");
                         return Condition.DUMMY;
                     }
@@ -1051,23 +1173,22 @@ public class Parser {
      * checks if this variable is a const or a local var, and creates a &lt;name&gt; &lt;objective&gt;
      *
      */
-    private static String getVariableAccess(String name) {
+    public static EntryScore getScoreAccess(String name) {
         if (ctx.hasConstant(name)) {
-            return name + " Constants";
+            return Score.constant(name);
         }
         if (ctx.hasGlobal(name)) {
-            return name + " Global";
+            return Score.global(name);
         }
-        return "@s " + name;
+        return new EntryScore(name,"@s");
     }
 
     /**
      * Parses operators after a score access, for comparing 2 score values. Used for if(condition)s
-     * @param first The first score access
-     * @param literal Whether this score is a literal value, aka a constant hardcoded number.
+     * @param first The first score
      * @return A {@link ScoreCondition} joined by the next condition.
      */
-    private static Condition parseScoreOperators(String first, boolean literal) {
+    private static Condition parseScoreOperators(Score first) {
         String op = tokens.peek().getValue();
         boolean negate = false;
         switch (op) {
@@ -1085,33 +1206,30 @@ public class Parser {
                 break;
                 default:
                     compilationError(ErrorType.INVALID,"operator in condition");
-                    return new ScoreCondition(new Value(first,literal),"noop",new Value("",false),false);
+                    return new ScoreCondition(first,"noop",Score.of(0),false);
         }
         tokens.skip();
-        Token secondTok = tokens.next();
-        String second = "";
-        boolean secondLiteral = false;
-        switch (secondTok.getType()) {
+        Score second = Score.of(0);
+        switch (tokens.peek().getType()) {
             case IDENTIFIER:
-                if (!ctx.hasGlobal(secondTok.getValue()) && !ctx.hasConstant(secondTok.getValue())) {
-                    tokens.pushBack();
+                Token t = tokens.next();
+                if (!ctx.hasGlobal(t.getValue()) && !ctx.hasConstant(t.getValue())) {
                     compilationError(ErrorType.UNKNOWN, "variable");
                 }
-                second = getVariableAccess(secondTok.getValue());
+                second = getScoreAccess(t.getValue());
                 break;
             case INT:
-                second = secondTok.getValue();
-                secondLiteral = true;
+                second = Score.of(tokens.readLiteralInt());
                 break;
             default:
-                if (secondTok.getValue().equals("@")) {
+                if (tokens.skip("@")) {
                     second = SelectorParser.parseObjectiveSelector();
                 } else {
                     compilationError(ErrorType.INVALID,"token in condition");
                 }
         }
 
-        return chainConditions(new ScoreCondition(new Value(first,literal),op,new Value(second,secondLiteral),negate));
+        return chainConditions(new ScoreCondition(first,op,second,negate));
     }
 
     /**
@@ -1137,6 +1255,7 @@ public class Parser {
             list.add(valueParser.apply(tokens));
             if (!tokens.skip(",") && !tokens.isNext(close + "")) {
                 compilationError(ErrorType.EXPECTED,", or " + close + " to end list");
+                return list;
             }
         }
         tokens.expect(close);
@@ -1174,11 +1293,12 @@ public class Parser {
 
     /**
      * Generates a new function combining the specified commands.
-     * @param commands The commands to combine
-     * @return The functions name, for using with /function &lt;name&gt;
+     * @param type The name of the function. Will add an index to the name to avoid generating functions with the same name.
+     * @param commands The commands to include
+     * @return The functions identifier, for using with /function &lt;location&gt;
      */
-    public static String generateFunction(List<String> commands) {
-        String s = ctx.generateFunctionName();
+    public static String generateFunction(String type, List<String> commands) {
+        String s = ctx.generateFunctionName(type);
         ctx.addFunction(s,commands);
         return ctx.getNamespace() + ":" + s;
     }
@@ -1187,14 +1307,13 @@ public class Parser {
      * Reads the next statement, and if it is a block statement, will combine them into a function command.
      * @return A single command or a /function command referring to multiple commands
      */
-    public static String readExecuteRunCommand() {
+    public static String readExecuteRunCommand(String type) {
         List<String> statement = parseStatement(ScopeType.NORMAL);
         if (statement.isEmpty()) {
-            compilationError(ErrorType.MISSING,"chained command");
             return "say Empty Statement!";
         }
         if (statement.size() > 1) {
-            return "function " + generateFunction(statement);
+            return "function " + generateFunction(type,statement);
         }
         return statement.get(0);
     }
@@ -1215,7 +1334,7 @@ public class Parser {
     public static void createConstant(String name, int value) {
         ctx.ensureConstants();
         ctx.consts.put(name,value);
-        ctx.addLoad("scoreboard players set " + name + " Constants " + value);
+        ctx.addLoad("scoreboard players set " + name + " Consts " + value);
     }
 
     public static void createGlobal(String name) {

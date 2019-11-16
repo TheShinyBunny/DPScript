@@ -1,16 +1,16 @@
 package com.shinysponge.dpscript.tokenizew;
 
-import com.shinysponge.dpscript.project.DPScript;
+import java.io.File;
 
 public class CodePos implements Comparable<CodePos> {
 
     public static final CodePos END = new CodePos(null,-1,-1,-1);
-    private DPScript file;
+    private File file;
     private int pos;
     private int line;
     private int column;
 
-    public CodePos(DPScript file, int pos, int line, int column) {
+    public CodePos(File file, int pos, int line, int column) {
         this.pos = pos;
         this.file = file;
         this.line = line;
@@ -25,7 +25,7 @@ public class CodePos implements Comparable<CodePos> {
         return line;
     }
 
-    public DPScript getFile() {
+    public File getFile() {
         return file;
     }
 

@@ -1,6 +1,6 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
-import com.shinysponge.dpscript.pawser.selector.Selector;
+import com.shinysponge.dpscript.pawser.Selector;
 
 import java.util.function.Consumer;
 

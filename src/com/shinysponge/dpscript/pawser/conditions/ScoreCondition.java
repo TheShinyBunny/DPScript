@@ -1,18 +1,19 @@
 package com.shinysponge.dpscript.pawser.conditions;
 
 import com.shinysponge.dpscript.pawser.Parser;
-import com.shinysponge.dpscript.pawser.Value;
+import com.shinysponge.dpscript.pawser.score.LiteralScore;
+import com.shinysponge.dpscript.pawser.score.Score;
 
 import java.util.Collections;
 import java.util.List;
 
 public class ScoreCondition extends Condition {
 
-    private final Value first;
+    private final Score first;
     private String op;
-    private final Value second;
+    private final Score second;
 
-    public ScoreCondition(Value first, String op, Value second, boolean negate) {
+    public ScoreCondition(Score first, String op, Score second, boolean negate) {
         super(negate);
         this.first = first;
         this.op = op;
@@ -21,11 +22,11 @@ public class ScoreCondition extends Condition {
 
     @Override
     public List<String> toCommands(String command) {
-        if (first.isLiteral() && second.isLiteral()) Parser.compilationError(null,"Cannot compare two literal values!");
-        if (first.isLiteral()) {
-            return Collections.singletonList(negation() + " score " + second + " matches " + first.toRange(op));
-        } else if (second.isLiteral()){
-            return Collections.singletonList(negation() + " score " + first + " matches " + second.toRange(op));
+        if (first instanceof LiteralScore && second instanceof LiteralScore) Parser.compilationError(null,"Cannot compare two literal values!");
+        if (first instanceof LiteralScore) {
+            return Collections.singletonList(negation() + " score " + second + " matches " + ((LiteralScore) first).toRange(op));
+        } else if (second instanceof LiteralScore) {
+            return Collections.singletonList(negation() + " score " + first + " matches " + ((LiteralScore) second).toRange(op));
         } else {
             return Collections.singletonList(negation() + " score " + first + " " + op + " " + second);
         }

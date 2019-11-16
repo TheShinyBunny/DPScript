@@ -2,6 +2,8 @@ package com.shinysponge.dpscript.oop;
 
 import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.pawser.Parser;
+import com.shinysponge.dpscript.pawser.Variable;
+import com.shinysponge.dpscript.pawser.VariableType;
 
 import java.util.HashMap;
 import java.util.List;
@@ -22,7 +24,7 @@ public class ClassInstance {
         Parser.currentInstance = this;
         Parser.getContext().enterBlock();
         for (Map.Entry<String,Object> e : variables.entrySet()) {
-            Parser.getContext().putVariable(e.getKey(),LazyValue.literal(e.getValue()));
+            Parser.getContext().putVariable(e.getKey(),new Variable(VariableType.OBJECT,e.getValue()));
         }
         if (type.getSuperClass() != null) {
             for (DPField f : type.getAllFields()) {

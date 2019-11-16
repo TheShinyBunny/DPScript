@@ -6,9 +6,8 @@ import com.shinysponge.dpscript.oop.DPClass;
 import com.shinysponge.dpscript.oop.LazyValue;
 import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
-import com.shinysponge.dpscript.project.DPScript;
 
-import java.io.File;
+
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -183,6 +182,9 @@ public class TokenIterator implements Iterator<Token> {
      * Skips all tokens until the next {@link TokenType#LINE_END}.
      */
     public void nextLine() {
+        if (hasNext() && !isNext(TokenType.LINE_END)) {
+            error(null,"Trailing code " + peek());
+        }
         while (hasNext() && !isNext(TokenType.LINE_END))
             skip();
         skip(TokenType.LINE_END);

@@ -1,10 +1,10 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
-import com.shinybunny.utils.ListUtils;
+import com.shinybunny.utils.Pair;
 import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.pawser.*;
-import com.shinysponge.dpscript.pawser.selector.Selector;
-import com.shinysponge.dpscript.pawser.selector.SimpleSelector;
+import com.shinysponge.dpscript.pawser.Selector;
+import com.shinysponge.dpscript.pawser.score.EntryScore;
 import com.shinysponge.dpscript.tokenizew.*;
 
 import java.util.*;
@@ -33,6 +33,7 @@ public class SelectorParser {
             }
         },"effect");
         addSelectorMember((selector, cmds) -> {
+            selector.ensurePlayer("only players have advancements");
             String command = tokens.previous();
             tokens.expect('(');
             String method = "only";
@@ -59,11 +60,13 @@ public class SelectorParser {
             cmds.accept("advancement " + command + " " + selector + " " + method + " " + adv + " " + criterion);
         },"grant","revoke");
         addSelectorMember((selector, cmds)->{
+            selector.ensurePlayer("only player inventories can be cleared");
             tokens.expect('(');
-            if (tokens.isNext(")")) {
+            if (tokens.skip(")")) {
                 cmds.accept("clear " + selector);
             } else {
                 Item item = Parser.parseItemAndCount();
+                tokens.expect(')');
                 cmds.accept("clear " + selector + " " + item);
             }
         },"clear");
@@ -81,6 +84,7 @@ public class SelectorParser {
         }, "action", "actionbar");
 
         addSelectorMember((selector, cmds) -> {
+            selector.ensurePlayer("only players can receive titles");
             tokens.expect("(");
 
             String fadeIn = tokens.expect(TokenType.INT,"fade in value");
@@ -100,6 +104,7 @@ public class SelectorParser {
             cmds.accept(NBTDataParser.parse("entity " + selector));
         },"nbt","data");
         addSelectorMember((selector,cmds)->{
+            selector.ensurePlayer("can only change gamemode to players");
             tokens.expect('=');
             cmds.accept("gamemode " + Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes) + " " + selector);
         },"gamemode");
@@ -108,7 +113,6 @@ public class SelectorParser {
             String enchID = Parser.parseResourceLocation(false);
             Enchantments ench = Enchantments.get(enchID);
             if (ench == null) {
-                tokens.pushBack();
                 Parser.compilationError(ErrorType.UNKNOWN,"enchantment ID");
                 ench = Enchantments.PROTECTION;
             }
@@ -140,6 +144,7 @@ public class SelectorParser {
             cmds.accept("tag " + selector + " remove " + tag);
         },"untag","removeTag");
         addSelectorMember((selector,cmds)->{
+            selector.ensurePlayer("only players have experience");
             if (tokens.isNext("++","+=","-=","--","=")) {
                 String op = tokens.expect("++","+=","-=","--","=");
                 String method;
@@ -166,6 +171,7 @@ public class SelectorParser {
             }
         },"xp","exp","experience");
         addSelectorMember((selector,cmds)->{
+            selector.ensurePlayer("only players can have a spawn point");
             tokens.expect('=');
             cmds.accept("spawnpoint " + Parser.readPosition() + " " + selector);
         },"spawnpoint","spawn");
@@ -180,15 +186,14 @@ public class SelectorParser {
             cmds.accept("tp " + selector + " " + pos);
         }, "tp");
         addSelectorMember((selector, cmds)->{
+            selector.ensurePlayer("only players can receive text messages");
             tokens.expect('(');
             String json = JsonTextParser.readTextComponent();
             tokens.expect(')');
             cmds.accept("tellraw " + selector + " " + json);
         },"tellraw","tell");
         addSelectorMember((selector, cmds)->{
-            if (!selector.targetsPlayers()) {
-                Parser.compilationError(null,"selector " + selector + " can target non-players, but give() can only be used on players.");
-            }
+            selector.ensurePlayer("items can only be given to players");
             tokens.expect("(");
             String src = LootParser.parseLootSource();
             if (src == null) {
@@ -200,6 +205,8 @@ public class SelectorParser {
             }
         },"give");
     }
+
+
 
     private static void addSelectorMember(BiConsumer<Selector, Consumer<String>> parser, String... ids) {
         selectorMembers.add(new SelectorMember() {
@@ -216,9 +223,11 @@ public class SelectorParser {
     }
 
     /**
+     * Parses a title command: A json component surrounded by parentheses
      * @param type title, subtitle, actionbar
      */
     private static void doTitle(Selector selector, Consumer<String> cmds, String type) {
+        selector.ensurePlayer("only players can receive titles");
         tokens.expect("(");
         String json = JsonTextParser.readTextComponent();
 
@@ -237,6 +246,11 @@ public class SelectorParser {
         return parseSelectorFrom(tokens);
     }
 
+    /**
+     * Parses an entity selector token. The last token in the {@link Parser#tokens} should be '@'.
+     * The next token should be the target selector or an entity type. Then, it will parse the selector parameters.
+     * @return A new {@link Selector} object
+     */
     public static Selector parseSelector() {
         return parseSelectorFrom(Parser.tokens);
     }
@@ -244,7 +258,6 @@ public class SelectorParser {
     private static Selector parseSelectorFrom(TokenIterator tokens) {
         char target;
         String type = null;
-        tokens.suggestHere(ListUtils.concat(Parser.entityIds, Arrays.asList("a","e","p","s","r")));
         if (tokens.skip("all","any","e","entity","entities")) {
             target = 'e';
         } else if (tokens.skip("players","a","everyone","allplayers")) {
@@ -269,7 +282,6 @@ public class SelectorParser {
         if (tokens.skip("[")) {
             List<String> scores = new ArrayList<>();
             while (!tokens.skip("]")) {
-                tokens.suggestHere(Arrays.asList("name","tag","tags","gamemode","nbt"));
                 String f = tokens.expect(TokenType.IDENTIFIER,"selector field");
                 switch (f) {
                     case "name":
@@ -289,6 +301,7 @@ public class SelectorParser {
                     case "gamemode":
                         tokens.expect("=");
                         params.put("gamemode", Parser.parseIdentifierOrIndex(tokens,"gamemode",Parser.gamemodes));
+                        break;
                     case "nbt":
                         tokens.expect('=');
                         boolean negate = tokens.skip("!");
@@ -334,9 +347,14 @@ public class SelectorParser {
                 params.put("scores","{" + String.join(",",scores) + "}");
             }
         }
-        return new SimpleSelector(target,params);
+        return new Selector(target,params);
     }
 
+    /**
+     * Parses the code usually after a selector, to manipulate or query the selected entity
+     * @param selector The selector
+     * @return A list of command to be executed on that selector
+     */
     public static List<String> parseSelectorCommand(Selector selector) {
         List<String> cmds = new ArrayList<>();
         tokens = Parser.tokens;
@@ -412,7 +430,7 @@ public class SelectorParser {
                         return cmds;
                     }
                     if (Parser.hasObjective(field)) {
-                        cmds.addAll(parseScoreOperators(selector + " " + field));
+                        cmds.add(parseScoreOperators(new EntryScore(field,selector.toString())));
                     } else {
                         Parser.compilationError(ErrorType.UNKNOWN,"selector field " + field);
                     }
@@ -421,50 +439,50 @@ public class SelectorParser {
         return cmds;
     }
 
-    public static String parseObjectiveSelector() {
+    /**
+     * Parses an entity selector an an objective name after it.
+     * @return A {@link EntryScore} object packing the selector and the objective
+     */
+    public static EntryScore parseObjectiveSelector() {
         TokenIterator tokens = Parser.tokens;
         Selector selector = parseSelector();
         tokens.expect('.');
         String obj = tokens.expect(TokenType.IDENTIFIER,"objective name");
         if (!Parser.hasObjective(obj)) Parser.compilationError(ErrorType.UNKNOWN,"objective " + obj);
-        return selector + " " + obj;
+        return new EntryScore(obj,selector.toString());
     }
 
-    public static List<String> parseScoreOperators(String access) {
+    public static String parseScoreOperators(EntryScore access) {
         TokenIterator tokens = Parser.tokens;
-        List<String> cmds = new ArrayList<>();
         for (ObjectiveOperators op : ObjectiveOperators.values()) {
             if (tokens.skip(op.getOperator())) {
                 if (op.isUnary()) {
-                    cmds.add("scoreboard players " + op.getLiteralCommand() + " " + access + " " + 1);
-                    return cmds;
+                    return "scoreboard players " + op.getLiteralCommand() + " " + access + " " + 1;
                 } else if (tokens.skip("@")) {
-                    String source = parseObjectiveSelector();
-                    cmds.add("scoreboard players operation " + access + " " + op.getOperationOperator() + " " + source);
-                    return cmds;
+                    EntryScore source = parseObjectiveSelector();
+                    return "scoreboard players operation " + access + " " + op.getOperationOperator() + " " + source;
                 } else if (tokens.isNext(TokenType.INT)) {
                     int value = Integer.parseInt(tokens.nextValue());
                     if (op.getLiteralCommand() == null) {
                         Parser.createConstant(String.valueOf(value),value);
-                        cmds.add("scoreboard players operation " + access + " " + op.getOperationOperator() + " " + value + " Constants");
+                        return "scoreboard players operation " + access + " " + op.getOperationOperator() + " " + value + " Constants";
                     } else {
-                        cmds.add("scoreboard players " + op.getLiteralCommand() + " " + access + " " + value);
+                        return "scoreboard players " + op.getLiteralCommand() + " " + access + " " + value;
                     }
-                    return cmds;
                 } else if (op == ObjectiveOperators.EQUALS) {
-                    cmds.add(Parser.parseExecuteStore("score " + access));
-                    return cmds;
+                    return Parser.parseExecuteStore("score " + access);
                 }
                 Parser.compilationError(ErrorType.EXPECTED,"a literal value or another score after score operator");
-                return cmds;
+                return "";
             }
         }
         Parser.compilationError(ErrorType.INVALID,"score operation");
-        return cmds;
+        return "";
     }
 
-    public static List<String> parseSelectorAndCommand() {
-        return parseSelectorCommand(parseSelector());
+    public static Pair<Selector,List<String>> parseSelectorAndCommand() {
+        Selector selector = parseSelector();
+        return Pair.of(selector,parseSelectorCommand(selector));
     }
 
     /**
@@ -474,7 +492,7 @@ public class SelectorParser {
     public static Selector parseAnySelector(boolean multiple) {
         tokens = Parser.tokens;
         if (tokens.isNext(TokenType.IDENTIFIER)) {
-            Object var = Parser.getContext().getVariable(tokens.peek().getValue()).eval();
+            Object var = Parser.getContext().getVariable(tokens.peek().getValue()).get();
             if (var instanceof Selector) {
                 tokens.skip();
                 return (Selector) var;

@@ -1,14 +1,7 @@
 package com.shinysponge.dpscript.tokenizew;
 
-import com.shinysponge.dpscript.project.DPScript;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Predicate;
 
 public class Tokenizer {
 
@@ -83,12 +76,12 @@ public class Tokenizer {
                 default: {
                     if (signedNumber || Character.isDigit(c)) {
                         String numStr = "" + c;
-                        for (; pos < str.length() - 1 && isInteger(numStr + str.charAt(pos)); pos++) {
+                        for (; pos < str.length() && isInteger(numStr + str.charAt(pos)); pos++) {
                             numStr += str.charAt(pos);
                         }
-                        if (pos < str.length() - 1) {
+                        if (pos < str.length()) {
                             String doubleStr = numStr;
-                            for (; pos < str.length() - 1 && isDouble(doubleStr + str.charAt(pos)); pos++) {
+                            for (; pos < str.length() && isDouble(doubleStr + str.charAt(pos)) && !Character.isWhitespace(str.charAt(pos)); pos++) {
                                 doubleStr += str.charAt(pos);
                             }
                             if (doubleStr.equals(numStr)) {

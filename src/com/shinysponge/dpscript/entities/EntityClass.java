@@ -2,8 +2,7 @@ package com.shinysponge.dpscript.entities;
 
 import com.shinybunny.utils.MapBuilder;
 import com.shinysponge.dpscript.oop.*;
-import com.shinysponge.dpscript.pawser.selector.Selector;
-import com.shinysponge.dpscript.pawser.selector.SimpleSelector;
+import com.shinysponge.dpscript.pawser.Selector;
 
 import java.util.*;
 
@@ -26,7 +25,7 @@ public class EntityClass extends DPClass {
     public Selector createSelector(ClassInstance instance) {
         if (this == instance.getType()) {
             System.out.println(instance);
-            return new SimpleSelector('e', MapBuilder.of("type",this.type.getId()).and("tag",Selector.toMultiParams("tag", (List<String>) instance.get("Tags"))));
+            return new Selector('e', MapBuilder.of("type",this.type.getId()).and("tag",Selector.toMultiParams("tag", (List<String>) instance.get("Tags"))));
         }
         return null;
     }

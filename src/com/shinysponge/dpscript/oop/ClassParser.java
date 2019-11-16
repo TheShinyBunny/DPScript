@@ -1,8 +1,7 @@
 package com.shinysponge.dpscript.oop;
 
-import com.shinysponge.dpscript.pawser.ErrorType;
-import com.shinysponge.dpscript.pawser.Parser;
-import com.shinysponge.dpscript.pawser.ScopeType;
+import com.shinysponge.dpscript.pawser.*;
+import com.shinysponge.dpscript.pawser.score.LazyScoreValue;
 import com.shinysponge.dpscript.project.MCFunction;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
@@ -34,7 +33,7 @@ public class ClassParser {
         DPClass cls;
         Parser.getContext().enterBlock();
         for (DPParameter p : params) {
-            Parser.getContext().putVariable(p.getName(),LazyValue.of(()->Parser.currentInstance.get(p.getName()),p.getType()));
+            Parser.getContext().putVariable(p.getName(),new Variable(VariableType.OBJECT,LazyValue.of(()->Parser.currentInstance.get(p.getName()),p.getType())));
         }
         if (tokens.skip("extends")) {
             String extendName = tokens.expect(TokenType.IDENTIFIER,"class name");
@@ -125,7 +124,6 @@ public class ClassParser {
         String name = typeName;
         if (tokens.isNext(TokenType.IDENTIFIER)) {
             if (type == null) {
-                tokens.pushBack();
                 Parser.compilationError(ErrorType.UNKNOWN,"class " + typeName);
             }
             name = tokens.nextValue();
@@ -141,7 +139,6 @@ public class ClassParser {
             optional = true;
             defaultValue = readSingleValue(tokens,type);
             if (defaultValue == null) {
-                tokens.pushBack();
                 Parser.compilationError(ErrorType.INVALID,"object of " + (type == null ? "any type" : "type " + type.getName()));
             }
         } else if (tokens.skipAll(".",".",".")) {
@@ -165,12 +162,12 @@ public class ClassParser {
         if (tokens.isNext(TokenType.IDENTIFIER) && !tokens.isNext("true","false")) {
             System.out.println("reading var single value");
             String name = tokens.nextValue();
-            LazyValue<?> v = Parser.getContext().getVariable(name);
+            Variable v = Parser.getContext().getVariable(name);
             if (v == null) {
                 Parser.compilationError(ErrorType.UNKNOWN,"variable " + name);
                 return LazyValue.of(type == null ? ()->null : type::dummyInstance,type);
             }
-            return v;
+            return v.getLazyValue();
         }
         if (type != null) {
             return LazyValue.literal(type.parseLiteral(tokens));
@@ -201,7 +198,6 @@ public class ClassParser {
             System.out.println("operator " + opcode);
             Operator<?,?> op = Operator.get(opcode,type);
             if (op == null) {
-                tokens.pushBack();
                 Parser.compilationError(ErrorType.UNKNOWN,"operator " + opcode);
                 return LazyValue.NULL;
             }

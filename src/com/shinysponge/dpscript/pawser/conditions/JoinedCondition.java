@@ -37,7 +37,7 @@ public class JoinedCondition extends Condition {
             List<String> leftCmds = left.toCommands(command);
             List<String> rightCmds = right.toCommands(command);
             if (rightCmds.size() > 1) {
-                String name = Parser.generateFunction(rightCmds.stream().map(s->"execute " + s).collect(Collectors.toList()));
+                String name = Parser.generateFunction("execute",rightCmds.stream().map(s->"execute " + s).collect(Collectors.toList()));
                 leftCmds = leftCmds.stream().map(s -> s + " run function " + name).collect(Collectors.toList());
             } else {
                 leftCmds = leftCmds.stream().map(s -> s + " " + rightCmds.get(0) + " run " + command).collect(Collectors.toList());

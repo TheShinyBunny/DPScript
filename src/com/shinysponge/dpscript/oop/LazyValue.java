@@ -55,6 +55,10 @@ public interface LazyValue<T> {
         return PrimitiveClass.of(first);
     }
 
+    static <T, R> Function<LazyValue<T>,R> toLazyConsumer(Function<T,R> function) {
+        return (l)->function.apply(l.eval());
+    }
+
     T eval();
 
     AbstractClass getType();

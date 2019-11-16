@@ -38,7 +38,7 @@ public abstract class AbstractClass {
 
     public MCFunction findFunction(String name) {
         for (MCFunction f : getFunctions()) {
-            if (f.getName().equals(name)) {
+            if (f.getId().equals(name)) {
                 return f;
             }
         }

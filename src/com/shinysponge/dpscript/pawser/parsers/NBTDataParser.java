@@ -21,7 +21,7 @@ public class NBTDataParser {
             if (tokens.isNext("byte","short","int","long","float","double")) {
                 String type = tokens.expect(TokenType.IDENTIFIER,null);
                 tokens.expect('(');
-                String cmd = Parser.readExecuteRunCommand();
+                String cmd = Parser.readExecuteRunCommand("execute");
                 tokens.expect(')');
                 String result = "result";
                 if (tokens.skip(".")) {

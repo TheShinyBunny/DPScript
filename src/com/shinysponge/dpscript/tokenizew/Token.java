@@ -1,7 +1,6 @@
 package com.shinysponge.dpscript.tokenizew;
 
 import com.shinybunny.utils.MathUtils;
-import com.shinysponge.dpscript.project.DPScript;
 
 import java.io.File;
 
@@ -17,7 +16,7 @@ public class Token {
         this.value = value;
     }
 
-    public static Token eof(DPScript file) {
+    public static Token eof(File file) {
         return new Token(new CodePos(file,-1,-1,0),TokenType.DUMMY,"end of file");
     }
 
@@ -39,6 +38,6 @@ public class Token {
     }
 
     public boolean isPositionInside(File file, int pos) {
-        return this.pos.getFile().getFile().sameAs(file) && MathUtils.inRange(pos,this.pos.getPos(),this.pos.getPos() + this.value.length());
+        return this.pos.getFile().equals(file) && MathUtils.inRange(pos,this.pos.getPos(),this.pos.getPos() + this.value.length());
     }
 }

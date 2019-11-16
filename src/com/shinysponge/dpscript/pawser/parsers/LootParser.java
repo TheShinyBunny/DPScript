@@ -1,7 +1,7 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
 import com.shinysponge.dpscript.pawser.Parser;
-import com.shinysponge.dpscript.pawser.selector.Selector;
+import com.shinysponge.dpscript.pawser.Selector;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 
 public class LootParser {

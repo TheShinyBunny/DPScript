@@ -1,26 +1,23 @@
 package com.shinysponge.dpscript.project;
 
 import com.shinybunny.utils.DummyEntry;
-import com.shinybunny.utils.fs.Folder;
-import com.shinysponge.dpscript.DPScriptMain;
+import com.shinybunny.utils.json.Json;
+import com.shinybunny.utils.json.JsonArray;
 import com.shinysponge.dpscript.pawser.CompilationError;
 import com.shinysponge.dpscript.tokenizew.CodePos;
 import com.shinysponge.dpscript.tokenizew.Token;
 
 import java.io.File;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class CompilationResults {
     private final Datapack project;
     private final List<CompilationError> errors;
-    private final Map<String, MCFunction> functions;
     private Map<Token, String[]> suggestions;
 
-    public CompilationResults(Datapack project, List<CompilationError> errors, Map<String, MCFunction> functions, Map<Token, String[]> suggestions) {
+    public CompilationResults(Datapack project, List<CompilationError> errors, Map<Token, String[]> suggestions) {
         this.project = project;
         this.errors = errors;
-        this.functions = functions;
         this.suggestions = suggestions;
     }
 
@@ -32,21 +29,19 @@ public class CompilationResults {
         return project;
     }
 
-    public Map<String, MCFunction> getFunctions() {
-        return functions;
-    }
-
     public List<CompilationError> getErrors() {
         return errors;
     }
 
-    public void saveFunctions(Folder dest) {
-        if (!isSuccessful()) return;
-        DPScriptMain.generateMCMeta(dest,project.getDescription());
-        Folder funcs = dest.subFolder("data").subFolder(project.getName()).subFolder("functions");
-        for (MCFunction f : functions.values()) {
-            f.saveIn(funcs);
+    public JsonArray getSuggestions() {
+        JsonArray json = new JsonArray();
+        for (Map.Entry<Token,String[]> s : suggestions.entrySet()) {
+            System.out.println("added suggestions: " + Arrays.toString(s.getValue()));
+            CodePos pos = s.getKey().getPos();
+            Json suggestion = new Json().set("file",pos.getFile().getPath()).set("line",pos.getLine()).set("column",pos.getColumn()).set("length",s.getKey().getValue().length()).set("values",s.getValue());
+            json.add(suggestion);
         }
+        return json;
     }
 
     public String[] getSuggestions(File file, int pos) {
@@ -54,6 +49,10 @@ public class CompilationResults {
     }
 
     public String[] getEndOfFileSuggestions(File file) {
-        return suggestions.entrySet().stream().filter(e->e.getKey().getPos().getLine() == -1 && e.getKey().getPos().getFile().getFile().sameAs(file)).findFirst().orElse(new DummyEntry<>(null,new String[0])).getValue();
+        return suggestions.entrySet().stream().filter(e->e.getKey().getPos().getLine() == -1 && e.getKey().getPos().getFile().equals(file)).findFirst().orElse(new DummyEntry<>(null,new String[0])).getValue();
+    }
+
+    public Datapack getDatapack() {
+        return project;
     }
 }
