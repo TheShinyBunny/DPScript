@@ -1,7 +1,16 @@
 package com.shinysponge.dpscript.project;
 
-public interface Taggable {
+import com.shinybunny.utils.json.Json;
+import com.shinybunny.utils.json.JsonSerializable;
 
-    String getId();
+public interface Taggable extends JsonSerializable {
 
+    String getName();
+
+    Namespace getNamespace();
+
+    @Override
+    default Json toJson() {
+        return Json.of(getNamespace() + ":" + getName());
+    }
 }

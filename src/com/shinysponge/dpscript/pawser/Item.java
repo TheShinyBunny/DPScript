@@ -32,7 +32,7 @@ public class Item {
 
     @Override
     public String toString() {
-        return id + tag + (count == 1 ? "" : " " + count);
+        return id + (tag == null ? "" : tag) + (count == 1 ? "" : " " + count);
     }
 
     public NBT toNBT() {

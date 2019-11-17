@@ -181,9 +181,14 @@ public class SelectorParser {
         },"kill","remove","die","despawn","sendToHeaven");
         addSelectorMember((selector, cmds) -> {
             tokens.expect("(");
-            String pos = Parser.readPosition();
+            String dest;
+            if (tokens.isNext("@") || tokens.isNext(TokenType.IDENTIFIER)) {
+                dest = String.valueOf(parseAnySelector(false));
+            } else {
+                dest = Parser.readPosition();
+            }
             tokens.expect(")");
-            cmds.accept("tp " + selector + " " + pos);
+            cmds.accept("tp " + selector + " " + dest);
         }, "tp");
         addSelectorMember((selector, cmds)->{
             selector.ensurePlayer("only players can receive text messages");
@@ -204,6 +209,22 @@ public class SelectorParser {
                 cmds.accept("loot give " + selector + " " + src);
             }
         },"give");
+        addSelectorMember((selector,cmds)->{
+            tokens.expect('(');
+            String center = Parser.readCoordinates(2);
+            tokens.expect(',');
+            double distance = tokens.readLiteralDouble();
+            tokens.expect(',');
+            double maxRange = tokens.readLiteralDouble();
+            boolean respect = false;
+            if (tokens.skip(",")) {
+                if (tokens.skip("respect","teams","respectTeams")) {
+                    respect = true;
+                }
+            }
+            tokens.expect(')');
+            cmds.accept("spreadplayers " + center + " " + distance + " " + maxRange + " " + respect + " " + selector);
+        },"spread","spreadplayers");
     }
 
 
@@ -458,6 +479,8 @@ public class SelectorParser {
             if (tokens.skip(op.getOperator())) {
                 if (op.isUnary()) {
                     return "scoreboard players " + op.getLiteralCommand() + " " + access + " " + 1;
+                } else if (op == ObjectiveOperators.EQUALS) {
+                    return Parser.parseExecuteStore("score " + access);
                 } else if (tokens.skip("@")) {
                     EntryScore source = parseObjectiveSelector();
                     return "scoreboard players operation " + access + " " + op.getOperationOperator() + " " + source;
@@ -469,8 +492,6 @@ public class SelectorParser {
                     } else {
                         return "scoreboard players " + op.getLiteralCommand() + " " + access + " " + value;
                     }
-                } else if (op == ObjectiveOperators.EQUALS) {
-                    return Parser.parseExecuteStore("score " + access);
                 }
                 Parser.compilationError(ErrorType.EXPECTED,"a literal value or another score after score operator");
                 return "";

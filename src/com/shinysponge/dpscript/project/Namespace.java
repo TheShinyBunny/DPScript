@@ -10,6 +10,7 @@ public class Namespace {
     private final String name;
     private File dir;
     private Map<String,MCFunction> functions = new HashMap<>();
+    private List<DatapackItem> items = new ArrayList<>();
 
     public Namespace(String name) {
         this.name = name;
@@ -23,6 +24,7 @@ public class Namespace {
     public void addFunction(MCFunction function) {
         System.out.println("adding function to namespace " + name);
         functions.put(function.getName(),function);
+        items.add(function);
     }
 
     public String getName() {
@@ -34,14 +36,14 @@ public class Namespace {
     }
 
     public void addTag(String type, String id, List<? extends Taggable> objects) {
-
+        items.add(new Tag(id,type,objects));
     }
 
     public void saveIn(File data) {
         File f = Files.create(data,name);
-        File funcs = Files.create(f,"functions");
-        for (MCFunction mcf : functions.values()) {
-            mcf.saveIn(funcs);
+        for (DatapackItem item : items) {
+            File dir = Files.create(f,item.getDirectory());
+            item.saveIn(dir);
         }
     }
 
@@ -51,5 +53,14 @@ public class Namespace {
 
     public Collection<MCFunction> getFunctions() {
         return functions.values();
+    }
+
+    @Override
+    public String toString() {
+        return name;
+    }
+
+    public void addItem(DatapackItem item) {
+        items.add(item);
     }
 }

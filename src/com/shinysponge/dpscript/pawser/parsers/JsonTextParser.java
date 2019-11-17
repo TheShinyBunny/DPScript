@@ -1,11 +1,15 @@
 package com.shinysponge.dpscript.pawser.parsers;
 
+import com.shinybunny.utils.Array;
+import com.shinybunny.utils.DummyEntry;
+import com.shinybunny.utils.json.*;
 import com.shinysponge.dpscript.pawser.ErrorType;
 import com.shinysponge.dpscript.pawser.Parser;
 import com.shinysponge.dpscript.tokenizew.TokenIterator;
 import com.shinysponge.dpscript.tokenizew.TokenType;
 
 import java.util.*;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class JsonTextParser {
@@ -176,7 +180,7 @@ public class JsonTextParser {
      * or a JSON primitive value (when {@link #value} is not null).<br/>
      * The {@link #key} property is used to bind this element to a different key in the parent JSON object.
      */
-    public static class JsonValue {
+    public static class JsonValue implements JsonSerializable {
 
         public static final JsonValue NULL = new JsonValue(null,null);
 
@@ -213,6 +217,13 @@ public class JsonTextParser {
             return String.valueOf(value);
         }
 
+        public String toStringUnquoted() {
+            if (value != null && value.toString().startsWith("\"")) {
+                return value.toString().substring(1,value.toString().length()-1);
+            }
+            return toString();
+        }
+
         public JsonValue require(Context ctx, String key) {
             if (elements == null) {
                 ctx.compilationError(ErrorType.EXPECTED, "a JSON Object");
@@ -227,6 +238,17 @@ public class JsonTextParser {
 
         public JsonValue getElement(String key) {
             return elements == null ? NULL : elements.get(key);
+        }
+
+        @Override
+        public Json toJson() {
+            if (value != null) {
+                return Json.of(value.toString().startsWith("\"") ? toStringUnquoted() : value);
+            }
+            if (children != null) {
+                return new JsonArray(JsonHelper.DEFAULT_HELPER,Array.fromStream(children.stream().map(JsonValue::toJson)));
+            }
+            return new Json(JsonHelper.DEFAULT_HELPER,elements.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().toJson())));
         }
     }
 

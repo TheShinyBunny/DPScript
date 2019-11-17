@@ -57,7 +57,7 @@ public class Selector {
     }
 
     public boolean targetsPlayers() {
-        if (getTarget() == 'p' || getTarget() == 'a') return true;
+        if (getTarget() == 'p' || getTarget() == 'a' || getTarget() == 's') return true;
         Map<String,String> params = getParams();
         return "player".equalsIgnoreCase(params.get("type"));
     }

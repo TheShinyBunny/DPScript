@@ -66,8 +66,8 @@ public class CompilationContext {
         }
         runChecks();
         setNamespace(null);
-        project.getMinecraftNamespace().addTag("function","tick",ticks);
-        project.getMinecraftNamespace().addTag("function","load",loads);
+        project.getMinecraftNamespace().addTag("functions","tick",ticks);
+        project.getMinecraftNamespace().addTag("functions","load",loads);
 
         logResults();
         return getResults();
@@ -133,6 +133,7 @@ public class CompilationContext {
     public void addTick(String command) {
         if (mainTick == null) {
             mainTick = addFunction("loop");
+            ticks.add(mainTick);
         }
         mainTick.add(command);
     }
@@ -140,6 +141,7 @@ public class CompilationContext {
     public void addLoad(String command) {
         if (mainLoad == null) {
             mainLoad = addFunction("init");
+            loads.add(mainLoad);
         }
         mainLoad.add(command);
     }
@@ -229,8 +231,8 @@ public class CompilationContext {
         ensureObjective("Global");
     }
 
-    public String getNamespace() {
-        return project.getName();
+    public Namespace getNamespace() {
+        return namespace;
     }
 
     public CompilationResults getResults() {

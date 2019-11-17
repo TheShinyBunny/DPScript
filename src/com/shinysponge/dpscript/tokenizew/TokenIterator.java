@@ -244,6 +244,7 @@ public class TokenIterator implements Iterator<Token> {
     }
 
     public double readLiteralDouble() {
+        if (isNext(TokenType.INT)) return readLiteralInt();
         return Double.parseDouble(expect(TokenType.DOUBLE,"double"));
     }
 

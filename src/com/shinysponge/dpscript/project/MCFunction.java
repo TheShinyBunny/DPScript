@@ -2,14 +2,13 @@ package com.shinysponge.dpscript.project;
 
 import com.shinybunny.utils.StringUtils;
 import com.shinybunny.utils.fs.Files;
-import com.shinysponge.dpscript.pawser.Parser;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class MCFunction implements Taggable {
+public class MCFunction implements Taggable,DatapackItem {
 
     private Namespace namespace;
     private String name;
@@ -34,14 +33,16 @@ public class MCFunction implements Taggable {
     }
 
     public void saveIn(File folder) {
-        File f = new File(folder, StringUtils.toLowerCaseUnderscore(name) + ".mcfunction");
+        File f = Files.create(folder, StringUtils.toLowerCaseUnderscore(name) + ".mcfunction");
         Files.write(f,String.join("\n",commands));
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
+    @Override
     public Namespace getNamespace() {
         return namespace;
     }
@@ -51,7 +52,7 @@ public class MCFunction implements Taggable {
     }
 
     @Override
-    public String getId() {
-        return namespace.getName() + ":" + name;
+    public String getDirectory() {
+        return "functions";
     }
 }

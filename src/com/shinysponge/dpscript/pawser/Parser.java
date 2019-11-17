@@ -9,6 +9,7 @@ import com.shinysponge.dpscript.entities.EntityClass;
 import com.shinysponge.dpscript.entities.NBT;
 import com.shinysponge.dpscript.oop.*;
 import com.shinysponge.dpscript.pawser.conditions.*;
+import com.shinysponge.dpscript.pawser.parsers.AdvancementParser;
 import com.shinysponge.dpscript.pawser.parsers.JsonTextParser;
 import com.shinysponge.dpscript.pawser.parsers.NBTDataParser;
 import com.shinysponge.dpscript.pawser.parsers.SelectorParser;
@@ -181,6 +182,13 @@ public class Parser {
                 if (cls != null) {
                     ctx.classes.put(cls.getName(), cls);
                 }
+                break;
+            }
+            case "task":
+            case "challenge":
+            case "goal":
+            case "advancement": {
+                AdvancementParser.parseAdvancement(t.getValue(),tokens);
                 break;
             }
             default:
@@ -648,11 +656,12 @@ public class Parser {
             return "value " + NBT.parseValue();
         }
         String source;
-        if (tokens.skip("@")) {
+        if (tokens.isNext("@") || tokens.isNext(TokenType.IDENTIFIER)) {
             source = "entity " + SelectorParser.parseAnySelector(false);
         } else {
             source = "block " + readPosition();
         }
+        tokens.expect('.');
         tokens.expect('[');
         String path = tokens.expect(TokenType.STRING,"NBT path");
         tokens.expect(']');
@@ -1102,6 +1111,12 @@ public class Parser {
                 Selector selector = SelectorParser.parseSelector();
                 if (tokens.skipAll(".","exists","(",")")) {
                     return chainConditions(new EntityExistsCondition(selector,false));
+                }
+                if (tokens.skipAll(".","has")) {
+                    tokens.expect('(');
+                    String path = tokens.expect(TokenType.STRING,"entity NBT data path");
+                    tokens.expect(')');
+                    return chainConditions(new HasDataCondition("entity",selector.toString(),path,false));
                 }
                 if (tokens.skip(".")) {
                     String obj = tokens.expect(TokenType.IDENTIFIER,"selector objective");

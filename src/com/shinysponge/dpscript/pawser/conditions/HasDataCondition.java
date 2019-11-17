@@ -17,6 +17,6 @@ public class HasDataCondition extends Condition {
 
     @Override
     public List<String> toCommands(String command) {
-        return Collections.singletonList(negation() + " " + type + " " + selector + " " + path);
+        return Collections.singletonList(negation() + " data " + type + " " + selector + " " + path);
     }
 }
